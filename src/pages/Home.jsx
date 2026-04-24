@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { Settings, Loader2 } from 'lucide-react';
@@ -8,6 +8,7 @@ import { getGreeting } from '@/lib/useTheme';
 import FilterChips from '@/components/home/FilterChips';
 import EventCard from '@/components/home/EventCard';
 import BottomTabBar from '@/components/common/BottomTabBar';
+import { rehydrateReminders } from '@/lib/reminders';
 
 export default function Home() {
   const [filter, setFilter] = useState('today');
@@ -28,6 +29,13 @@ export default function Home() {
     categories.forEach((c) => (map[c.id] = c));
     return map;
   }, [categories]);
+
+  // Re-arm in-tab notification timers after a page reload.
+  useEffect(() => {
+    if (!events.length) return;
+    const byId = Object.fromEntries(events.map((e) => [e.id, e]));
+    rehydrateReminders(byId);
+  }, [events]);
 
   const filtered = useMemo(() => {
     return events

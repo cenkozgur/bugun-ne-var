@@ -1,16 +1,65 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { MoreHorizontal, Bell, BellOff, CalendarPlus } from 'lucide-react';
+import { MoreHorizontal, Bell, BellOff, CalendarPlus, Tv } from 'lucide-react';
 import CategoryBadge from '@/components/common/CategoryBadge';
 import CountdownTimer from '@/components/common/CountdownTimer';
-import LiveBadge from '@/components/common/LiveBadge';
 import { format } from 'date-fns';
-import { tr } from 'date-fns/locale';
+import { useToast } from '@/components/ui/use-toast';
+import { downloadIcsForEvent } from '@/lib/ics';
+import { createReminder, removeReminder, isEventReminded } from '@/lib/reminders';
 
 export default function EventCard({ event, category }) {
   const [reminded, setReminded] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const { toast } = useToast();
   const eventTime = new Date(event.start_time);
   const timeStr = format(eventTime, 'HH:mm');
+
+  useEffect(() => {
+    setReminded(isEventReminded(event.id));
+  }, [event.id]);
+
+  const handleReminder = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (busy) return;
+    setBusy(true);
+    try {
+      if (reminded) {
+        await removeReminder(event);
+        setReminded(false);
+        toast({ title: 'hatırlatıcı kaldırıldı' });
+      } else {
+        const res = await createReminder(event, { minutesBefore: 15 });
+        setReminded(true);
+        if (res.permission === 'granted') {
+          toast({ title: 'hatırlatacağım', description: '15 dakika önce bildirim gelecek.' });
+        } else if (res.permission === 'denied') {
+          toast({ title: 'kaydettim', description: 'bildirim izni kapalı — ayarlar/safari üzerinden açabilirsin.' });
+        } else {
+          toast({ title: 'kaydettim', description: 'bu tarayıcı bildirim desteklemiyor.' });
+        }
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleAddToCalendar = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      downloadIcsForEvent(event);
+      toast({ title: 'takvime eklendi', description: 'dosyayı açınca takvimine düşer.' });
+    } catch (err) {
+      toast({ title: 'takvime eklenemedi', description: String(err?.message || err), variant: 'destructive' });
+    }
+  };
+
+  // On live events we hide the standalone live pill (already shown as section header).
+  const showCountdownRow = !event.is_live;
+  // On live events we hide reminder button (makes no sense) and replace with a watch link if we have broadcaster.
+  const actionsForLive = event.is_live;
 
   return (
     <Link
@@ -24,11 +73,15 @@ export default function EventCard({ event, category }) {
           <p className="text-micro uppercase text-muted-foreground tracking-wider">
             {event.competition_name}
           </p>
-          <p className="text-caption text-muted-foreground mt-0.5">{timeStr}</p>
+          <p className="text-caption text-muted-foreground mt-0.5">
+            {event.is_live && event.live_status
+              ? <span className="text-primary font-medium">{event.live_status}</span>
+              : timeStr}
+          </p>
         </div>
         <button
           className="p-1 text-muted-foreground"
-          onClick={(e) => e.preventDefault()}
+          onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
         >
           <MoreHorizontal className="w-4 h-4" />
         </button>
@@ -46,41 +99,42 @@ export default function EventCard({ event, category }) {
         </p>
       )}
 
-      {/* Divider */}
-      <div className="border-t border-border my-3" />
-
-      {/* Row 4: Countdown or Live */}
-      <div className="mb-3">
-        {event.is_live ? (
-          <div className="flex items-center gap-2">
-            <LiveBadge />
-            {event.live_status && (
-              <span className="text-caption text-muted-foreground">{event.live_status}</span>
-            )}
+      {/* Divider + countdown only for upcoming */}
+      {showCountdownRow && (
+        <>
+          <div className="border-t border-border my-3" />
+          <div className="mb-3">
+            <CountdownTimer targetTime={event.start_time} />
           </div>
-        ) : (
-          <CountdownTimer targetTime={event.start_time} />
-        )}
-      </div>
+        </>
+      )}
 
       {/* Row 5: Action buttons */}
-      <div className="flex gap-2">
+      <div className="flex gap-2 mt-3">
+        {actionsForLive ? (
+          <button
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); /* link will still navigate */ }}
+            className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-caption font-medium bg-primary/10 text-primary press-scale"
+          >
+            <Tv className="w-3.5 h-3.5" />
+            şimdi yayında
+          </button>
+        ) : (
+          <button
+            onClick={handleReminder}
+            disabled={busy}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-caption font-medium transition-colors press-scale ${
+              reminded
+                ? 'bg-primary/10 text-primary'
+                : 'bg-secondary text-secondary-foreground'
+            } disabled:opacity-60`}
+          >
+            {reminded ? <BellOff className="w-3.5 h-3.5" /> : <Bell className="w-3.5 h-3.5" />}
+            {reminded ? 'hatırlatıldı ✓' : 'hatırlat'}
+          </button>
+        )}
         <button
-          onClick={(e) => {
-            e.preventDefault();
-            setReminded(!reminded);
-          }}
-          className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-caption font-medium transition-colors press-scale ${
-            reminded
-              ? 'bg-primary/10 text-primary'
-              : 'bg-secondary text-secondary-foreground'
-          }`}
-        >
-          {reminded ? <BellOff className="w-3.5 h-3.5" /> : <Bell className="w-3.5 h-3.5" />}
-          {reminded ? 'hatırlatıldı ✓' : 'hatırlat'}
-        </button>
-        <button
-          onClick={(e) => e.preventDefault()}
+          onClick={handleAddToCalendar}
           className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-caption font-medium bg-secondary text-secondary-foreground press-scale"
         >
           <CalendarPlus className="w-3.5 h-3.5" />

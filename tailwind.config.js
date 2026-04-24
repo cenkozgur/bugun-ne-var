@@ -103,6 +103,10 @@ module.exports = {
     'text-cat-tenis', 'text-cat-voleybol', 'text-cat-tv', 'text-cat-turnuva',
     'border-cat-futbol', 'border-cat-f1', 'border-cat-motogp', 'border-cat-nba',
     'border-cat-tenis', 'border-cat-voleybol', 'border-cat-tv', 'border-cat-turnuva',
+    // Opacity variants used by <CategoryBadge /> — bg-${colorClass}/15 gets purged
+    // unless we list it here explicitly.
+    'bg-cat-futbol/15', 'bg-cat-f1/15', 'bg-cat-motogp/15', 'bg-cat-nba/15',
+    'bg-cat-tenis/15', 'bg-cat-voleybol/15', 'bg-cat-tv/15', 'bg-cat-turnuva/15',
   ],
   plugins: [require("tailwindcss-animate")],
 }
