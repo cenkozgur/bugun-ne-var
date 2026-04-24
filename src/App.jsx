@@ -11,6 +11,7 @@ import EventDetail from '@/pages/EventDetail';
 import Settings from '@/pages/Settings';
 import Yakinda from '@/pages/Yakinda';
 import Kesfet from '@/pages/Kesfet';
+import Seed from '@/pages/Seed';
 import { useTheme } from '@/lib/useTheme';
 
 const AuthenticatedApp = () => {
@@ -46,6 +47,7 @@ const AuthenticatedApp = () => {
       <Route path="/ayarlar" element={<Settings />} />
       <Route path="/yakinda" element={<Yakinda />} />
       <Route path="/kesfet" element={<Kesfet />} />
+      <Route path="/seed" element={<Seed />} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );
