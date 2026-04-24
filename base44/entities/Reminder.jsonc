@@ -1,0 +1,23 @@
+{
+  "name": "Reminder",
+  "type": "object",
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "description": "Reference to Event"
+    },
+    "minutes_before": {
+      "type": "number",
+      "default": 15,
+      "description": "Minutes before event to remind"
+    },
+    "enabled": {
+      "type": "boolean",
+      "default": true,
+      "description": "Whether reminder is active"
+    }
+  },
+  "required": [
+    "event_id"
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "name": "Category",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Category display name"
+    },
+    "emoji": {
+      "type": "string",
+      "description": "Emoji icon for the category"
+    },
+    "color": {
+      "type": "string",
+      "description": "Hex color code for the category badge"
+    },
+    "slug": {
+      "type": "string",
+      "description": "URL-friendly slug"
+    },
+    "subtitle": {
+      "type": "string",
+      "description": "Short description shown on tile"
+    }
+  },
+  "required": [
+    "name",
+    "emoji",
+    "color",
+    "slug"
+  ]
+}

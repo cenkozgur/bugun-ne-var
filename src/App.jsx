@@ -5,10 +5,17 @@ import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
-// Add page imports here
+import Home from '@/pages/Home';
+import Onboarding from '@/pages/Onboarding';
+import EventDetail from '@/pages/EventDetail';
+import Settings from '@/pages/Settings';
+import Yakinda from '@/pages/Yakinda';
+import Kesfet from '@/pages/Kesfet';
+import { useTheme } from '@/lib/useTheme';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
+  useTheme();
 
   // Show loading spinner while checking app public settings or auth
   if (isLoadingPublicSettings || isLoadingAuth) {
@@ -33,7 +40,12 @@ const AuthenticatedApp = () => {
   // Render the main app
   return (
     <Routes>
-      {/* Add your page Route elements here */}
+      <Route path="/" element={<Home />} />
+      <Route path="/onboarding" element={<Onboarding />} />
+      <Route path="/event/:id" element={<EventDetail />} />
+      <Route path="/ayarlar" element={<Settings />} />
+      <Route path="/yakinda" element={<Yakinda />} />
+      <Route path="/kesfet" element={<Kesfet />} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );

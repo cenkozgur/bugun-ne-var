@@ -1,0 +1,33 @@
+{
+  "name": "UserSubscription",
+  "type": "object",
+  "properties": {
+    "target_type": {
+      "type": "string",
+      "enum": [
+        "category",
+        "competition",
+        "entity"
+      ],
+      "description": "What type of thing is being subscribed to"
+    },
+    "target_id": {
+      "type": "string",
+      "description": "ID of the subscribed item"
+    },
+    "preset": {
+      "type": "string",
+      "enum": [
+        "all",
+        "important",
+        "custom"
+      ],
+      "default": "all",
+      "description": "Subscription preset level"
+    }
+  },
+  "required": [
+    "target_type",
+    "target_id"
+  ]
+}

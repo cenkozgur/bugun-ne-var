@@ -1,0 +1,28 @@
+{
+  "name": "TrackedEntity",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Entity name (team, player, program)"
+    },
+    "category_id": {
+      "type": "string",
+      "description": "Reference to Category"
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "team",
+        "player",
+        "program"
+      ],
+      "description": "Type of tracked entity"
+    }
+  },
+  "required": [
+    "name",
+    "category_id",
+    "type"
+  ]
+}

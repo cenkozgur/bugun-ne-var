@@ -1,0 +1,22 @@
+{
+  "name": "Competition",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Competition name"
+    },
+    "category_id": {
+      "type": "string",
+      "description": "Reference to Category"
+    },
+    "season": {
+      "type": "string",
+      "description": "Season identifier"
+    }
+  },
+  "required": [
+    "name",
+    "category_id"
+  ]
+}

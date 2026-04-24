@@ -1,0 +1,49 @@
+{
+  "name": "Event",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string",
+      "description": "Event title"
+    },
+    "competition_id": {
+      "type": "string",
+      "description": "Reference to Competition"
+    },
+    "category_id": {
+      "type": "string",
+      "description": "Reference to Category"
+    },
+    "start_time": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Event start time"
+    },
+    "broadcaster": {
+      "type": "string",
+      "description": "TV broadcaster"
+    },
+    "venue": {
+      "type": "string",
+      "description": "Event venue"
+    },
+    "is_live": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether event is currently live"
+    },
+    "live_status": {
+      "type": "string",
+      "description": "Current live status text"
+    },
+    "competition_name": {
+      "type": "string",
+      "description": "Denormalized competition name for display"
+    }
+  },
+  "required": [
+    "title",
+    "category_id",
+    "start_time"
+  ]
+}
