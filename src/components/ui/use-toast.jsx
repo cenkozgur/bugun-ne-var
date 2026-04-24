@@ -1,8 +1,11 @@
 // Inspired by react-hot-toast library
 import { useState, useEffect } from "react";
 
-const TOAST_LIMIT = 20;
-const TOAST_REMOVE_DELAY = 1000000;
+const TOAST_LIMIT = 3;
+// How long a toast stays visible before auto-dismissing.
+const TOAST_AUTO_DISMISS_MS = 3200;
+// How long after dismissal before removing from DOM (for exit animation).
+const TOAST_REMOVE_DELAY = 500;
 
 const actionTypes = {
   ADD_TOAST: "ADD_TOAST",
@@ -133,6 +136,11 @@ function toast({ ...props }) {
       },
     },
   });
+
+  // Auto-dismiss after visible duration — without this, toasts pile up
+  // until the user manually clicks X.
+  const autoDismissMs = props.duration ?? TOAST_AUTO_DISMISS_MS;
+  setTimeout(() => dismiss(), autoDismissMs);
 
   return {
     id,
