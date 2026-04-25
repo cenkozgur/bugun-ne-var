@@ -73,7 +73,7 @@ export default function Seed() {
       const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
       const [football, f1, tv] = await Promise.allSettled([
-        fetchUpcomingFootballMatches({ daysAhead: 2 }),
+        fetchUpcomingFootballMatches(),
         fetchUpcomingF1Sessions({ daysAhead: 7 }),
         Promise.resolve(buildTvEvents({ today, tomorrow })),
       ]);
