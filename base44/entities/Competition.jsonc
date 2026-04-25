@@ -16,7 +16,7 @@
     },
     "external_ref": {
       "type": "string",
-      "description": "Stable upstream id used for /seed dedup (e.g. league:T1)"
+      "description": "Stable upstream id used for /seed dedup (e.g. league:T1, league:E0)."
     }
   },
   "required": [

@@ -21,7 +21,7 @@
     },
     "external_ref": {
       "type": "string",
-      "description": "Stable upstream id used for /seed dedup (e.g. team:T1:Fenerbahce)"
+      "description": "Stable upstream id used for /seed dedup (e.g. team:T1:fenerbahce, team:E0:liverpool)."
     }
   },
   "required": [

@@ -44,17 +44,17 @@
       "type": "string",
       "description": "Stable identifier from the upstream data source (e.g. football:20079, f1:2026:4:Race). Used by /seed to dedupe re-runs."
     },
+    "competition_ref": {
+      "type": "string",
+      "description": "external_ref of the parent competition (e.g. league:T1). Lets us filter events by competition subscription without requiring the competition_id wiring."
+    },
     "home_entity_ref": {
       "type": "string",
-      "description": "external_ref of the home team/entity (matches TrackedEntity.external_ref). Lets us filter events by team subscription without requiring competition_id wiring."
+      "description": "external_ref of the home team/entity (e.g. team:T1:fenerbahce). Matches TrackedEntity.external_ref. Lets us filter events by team subscription."
     },
     "away_entity_ref": {
       "type": "string",
       "description": "external_ref of the away team/entity."
-    },
-    "competition_ref": {
-      "type": "string",
-      "description": "external_ref of the parent competition (e.g. league:T1). Lets us filter events by competition subscription."
     }
   },
   "required": [
