@@ -307,28 +307,6 @@ export default function Home() {
           </section>
         )}
 
-        {/* YARIN section — header label adapts depending on whether
-            today already has cards (then it's a preview) or today is
-            empty (then yarın IS the main list). The header subline
-            already says "bugün sakin, yarın N etkinlik var" so we don't
-            add a second hint here. */}
-        {timeFilter === 'today' && tomorrowEvents.length > 0 && (
-          <section>
-            <h2 className="text-micro uppercase text-muted-foreground tracking-wider mb-3">
-              yarın
-            </h2>
-            <div className="space-y-3">
-              {tomorrowEvents.map((event) => (
-                <EventCard
-                  key={event.id}
-                  event={event}
-                  category={categoryMap[event.category_id]}
-                />
-              ))}
-            </div>
-          </section>
-        )}
-
         {/* Other time filters: flat list */}
         {timeFilter !== 'today' && filtered.length > 0 && (
           <div className="space-y-3">
@@ -342,14 +320,15 @@ export default function Home() {
           </div>
         )}
 
-        {/* Hard empty state — today AND tomorrow are both empty. */}
+        {/* Empty state — bugün gerçekten boşsa. Yarın'a referans yok;
+            kullanıcı 'yarın' chip'ine kendi geçer, header subline'ı
+            zaten yarında etkinlik olduğunu söylüyor. */}
         {timeFilter === 'today' &&
           liveEvents.length === 0 &&
-          upcomingToday.length === 0 &&
-          tomorrowEvents.length === 0 && (
+          upcomingToday.length === 0 && (
             <div className="text-center py-12">
               <p className="text-body text-muted-foreground">
-                bugün ve yarın takip ettiğin bir etkinlik yok
+                bugün takip ettiğin bir etkinlik yok
               </p>
             </div>
           )}
