@@ -39,6 +39,10 @@
     "competition_name": {
       "type": "string",
       "description": "Denormalized competition name for display"
+    },
+    "external_ref": {
+      "type": "string",
+      "description": "Stable identifier from the upstream data source (e.g. football:20079, f1:2026:4:Race). Used by /seed to dedupe re-runs."
     }
   },
   "required": [
