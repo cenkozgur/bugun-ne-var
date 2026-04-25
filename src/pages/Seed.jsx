@@ -267,18 +267,22 @@ export default function Seed() {
             );
             entByRef.set(ref, created);
             entCreated += 1;
-          } else if (spec.competition_ref && existing.competition_ref !== spec.competition_ref) {
-            // Backfill: existing rows from earlier seed runs predate the
-            // competition_ref column. Patch them so onboarding's
-            // per-league filter actually narrows.
+          } else {
+            // Build a patch only for the fields that diverge. Covers
+            // both the competition_ref backfill and the ASCII→Turkish
+            // display rename (Besiktas → Beşiktaş).
+            const patch = {};
+            if (spec.competition_ref && existing.competition_ref !== spec.competition_ref) {
+              patch.competition_ref = spec.competition_ref;
+            }
+            if (spec.name && existing.name !== spec.name) {
+              patch.name = spec.name;
+            }
+            if (Object.keys(patch).length === 0) continue;
             await withRetry(() =>
-              base44.entities.TrackedEntity.update(existing.id, {
-                competition_ref: spec.competition_ref,
-              })
+              base44.entities.TrackedEntity.update(existing.id, patch)
             );
             entUpdated += 1;
-          } else {
-            continue; // up to date, no write needed
           }
           entIdx += 1;
           await sleep(80);

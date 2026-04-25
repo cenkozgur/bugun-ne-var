@@ -41,8 +41,41 @@ const LEAGUE_BROADCASTERS = {
   P1: 'S Sport',
 };
 
-// Stable team key: ASCII slug derived from team name + league.
-// Example: "Fenerbahçe" in T1 → "team:T1:fenerbahce"
+// Backend stores team names ASCII-normalized for slug stability
+// (Besiktas, Goztep, Kasimpasa). For UI we want the proper Turkish or
+// native spelling. This lookup converts upstream names → display names
+// without changing the slug — ref keys still resolve identically.
+const TEAM_DISPLAY_OVERRIDES = {
+  // Süper Lig
+  'Besiktas': 'Beşiktaş',
+  'Fenerbahce': 'Fenerbahçe',
+  'Goztep': 'Göztepe',
+  'Kasimpasa': 'Kasımpaşa',
+  'Eyupspor': 'Eyüpspor',
+  'Gaziantep': 'Gaziantep FK',
+  'Basaksehir': 'Başakşehir',
+  // Big-5 quirks
+  "Nott'm Forest": 'Nottingham Forest',
+  'Man United': 'Manchester United',
+  'Man City': 'Manchester City',
+  'Wolves': 'Wolverhampton',
+  'Sociedad': 'Real Sociedad',
+  'Vallecano': 'Rayo Vallecano',
+  'Sp Lisbon': 'Sporting Lisbon',
+  'Sp Braga': 'Sporting Braga',
+  "M'gladbach": "Borussia M'gladbach",
+  'Paris SG': 'Paris Saint-Germain',
+};
+
+export function displayName(rawName) {
+  if (!rawName) return rawName;
+  return TEAM_DISPLAY_OVERRIDES[rawName] || rawName;
+}
+
+// Stable team key: ASCII slug derived from team name + league. Slug
+// always uses the upstream raw name so refs stay identical regardless
+// of whether we're emitting from a fixture or the static roster.
+// Example: "Fenerbahçe" or "Fenerbahce" in T1 → "team:T1:fenerbahce"
 function teamRef(league, name) {
   if (!name) return '';
   const slug = name
@@ -79,23 +112,27 @@ export async function fetchUpcomingFootballMatches({ daysAhead = 2 } = {}) {
       const t = new Date(m.kickoff).getTime();
       return Number.isFinite(t) && t <= cutoff;
     })
-    .map((m) => ({
-      title: `${m.home_team} – ${m.away_team}`,
-      competition_name: LEAGUE_LABELS[m.league] || m.league,
-      start_time: new Date(m.kickoff).toISOString(),
-      broadcaster: LEAGUE_BROADCASTERS[m.league] || '',
-      venue: '',
-      is_live: m.status === 'in_play' || m.status === 'paused',
-      live_status: m.live_minute ? `${m.live_minute}'` : '',
-      _category_slug: 'futbol',
-      _source_id: `football:${m.id}`,
-      _competition_ref: competitionRef(m.league),
-      _competition_name: LEAGUE_LABELS[m.league] || m.league,
-      _home_entity_ref: teamRef(m.league, m.home_team),
-      _home_entity_name: m.home_team,
-      _away_entity_ref: teamRef(m.league, m.away_team),
-      _away_entity_name: m.away_team,
-    }));
+    .map((m) => {
+      const home = displayName(m.home_team);
+      const away = displayName(m.away_team);
+      return {
+        title: `${home} – ${away}`,
+        competition_name: LEAGUE_LABELS[m.league] || m.league,
+        start_time: new Date(m.kickoff).toISOString(),
+        broadcaster: LEAGUE_BROADCASTERS[m.league] || '',
+        venue: '',
+        is_live: m.status === 'in_play' || m.status === 'paused',
+        live_status: m.live_minute ? `${m.live_minute}'` : '',
+        _category_slug: 'futbol',
+        _source_id: `football:${m.id}`,
+        _competition_ref: competitionRef(m.league),
+        _competition_name: LEAGUE_LABELS[m.league] || m.league,
+        _home_entity_ref: teamRef(m.league, m.home_team),
+        _home_entity_name: home,
+        _away_entity_ref: teamRef(m.league, m.away_team),
+        _away_entity_name: away,
+      };
+    });
 }
 
 /**
@@ -162,24 +199,74 @@ export async function fetchUpcomingF1Sessions() {
 // of what's on the fixture today. Teams added here are just registered
 // in TrackedEntity — their event coverage still depends on the upstream
 // fixture pipeline.
+//
+// Each entry is [displayName, slugSeed]. slugSeed is what teamRef()
+// hashes — it must match what the upstream fixture pipeline emits, so
+// "Beşiktaş" the user sees and "Besiktas" the slug both resolve to
+// team:T1:besiktas.
 const STATIC_LEAGUE_ROSTERS = {
   T1: [
-    'Galatasaray', 'Fenerbahce', 'Besiktas', 'Trabzonspor',
-    'Basaksehir', 'Adana Demirspor', 'Antalyaspor', 'Konyaspor',
-    'Kasimpasa', 'Alanyaspor', 'Sivasspor', 'Kayserispor',
-    'Rizespor', 'Samsunspor', 'Eyupspor', 'Goztepe',
-    'Gaziantep', 'Kocaelispor',
+    ['Galatasaray', 'Galatasaray'],
+    ['Fenerbahçe', 'Fenerbahce'],
+    ['Beşiktaş', 'Besiktas'],
+    ['Trabzonspor', 'Trabzonspor'],
+    ['Başakşehir', 'Basaksehir'],
+    ['Adana Demirspor', 'Adana Demirspor'],
+    ['Antalyaspor', 'Antalyaspor'],
+    ['Konyaspor', 'Konyaspor'],
+    ['Kasımpaşa', 'Kasimpasa'],
+    ['Alanyaspor', 'Alanyaspor'],
+    ['Sivasspor', 'Sivasspor'],
+    ['Kayserispor', 'Kayserispor'],
+    ['Rizespor', 'Rizespor'],
+    ['Samsunspor', 'Samsunspor'],
+    ['Eyüpspor', 'Eyupspor'],
+    ['Göztepe', 'Goztep'],
+    ['Gaziantep FK', 'Gaziantep'],
+    ['Kocaelispor', 'Kocaelispor'],
+  ],
+  // Big-5: top clubs only (full rosters can come later). Slug seeds
+  // match what football-predictor stores so subscriptions resolve.
+  E0: [
+    ['Liverpool', 'Liverpool'], ['Arsenal', 'Arsenal'],
+    ['Manchester City', 'Man City'], ['Manchester United', 'Man United'],
+    ['Chelsea', 'Chelsea'], ['Tottenham', 'Tottenham'],
+    ['Newcastle', 'Newcastle'], ['Aston Villa', 'Aston Villa'],
+  ],
+  SP1: [
+    ['Real Madrid', 'Real Madrid'], ['Barcelona', 'Barcelona'],
+    ['Atletico Madrid', 'Ath Madrid'], ['Athletic Bilbao', 'Ath Bilbao'],
+    ['Real Sociedad', 'Sociedad'], ['Real Betis', 'Betis'],
+    ['Sevilla', 'Sevilla'], ['Villarreal', 'Villarreal'],
+  ],
+  I1: [
+    ['Inter', 'Inter'], ['Juventus', 'Juventus'],
+    ['Milan', 'Milan'], ['Napoli', 'Napoli'],
+    ['Roma', 'Roma'], ['Lazio', 'Lazio'],
+    ['Atalanta', 'Atalanta'], ['Fiorentina', 'Fiorentina'],
+  ],
+  D1: [
+    ['Bayern München', 'Bayern Munich'], ['Borussia Dortmund', 'Dortmund'],
+    ['RB Leipzig', 'RB Leipzig'], ['Bayer Leverkusen', 'Leverkusen'],
+    ['Eintracht Frankfurt', 'Ein Frankfurt'], ['VfB Stuttgart', 'Stuttgart'],
+    ['Werder Bremen', 'Werder Bremen'], ['Wolfsburg', 'Wolfsburg'],
+  ],
+  F1: [
+    ['Paris Saint-Germain', 'Paris SG'], ['Marseille', 'Marseille'],
+    ['Monaco', 'Monaco'], ['Lyon', 'Lyon'],
+    ['Lille', 'Lille'], ['Nice', 'Nice'],
+    ['Rennes', 'Rennes'], ['Lens', 'Lens'],
   ],
 };
 
 export function buildStaticTeamSeeds() {
   const out = [];
-  for (const [league, names] of Object.entries(STATIC_LEAGUE_ROSTERS)) {
-    for (const name of names) {
+  for (const [league, roster] of Object.entries(STATIC_LEAGUE_ROSTERS)) {
+    for (const [name, slugSeed] of roster) {
       out.push({
         _category_slug: 'futbol',
         _entity_name: name,
-        _entity_ref: teamRef(league, name),
+        _entity_ref: teamRef(league, slugSeed),
         _competition_ref: competitionRef(league),
       });
     }

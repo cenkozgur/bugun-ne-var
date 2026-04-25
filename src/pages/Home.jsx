@@ -320,15 +320,19 @@ export default function Home() {
           </div>
         )}
 
-        {/* Empty state — bugün gerçekten boşsa. Yarın'a referans yok;
-            kullanıcı 'yarın' chip'ine kendi geçer, header subline'ı
-            zaten yarında etkinlik olduğunu söylüyor. */}
+        {/* Empty state. If the user follows specific things but those
+            aren't on the schedule today, distinguish "scope is empty"
+            (sakin gün) from "you follow things that aren't playing"
+            (abonelik aktif ama bu hafta yok) so it doesn't read like
+            the app is broken. */}
         {timeFilter === 'today' &&
           liveEvents.length === 0 &&
           upcomingToday.length === 0 && (
             <div className="text-center py-12">
               <p className="text-body text-muted-foreground">
-                bugün takip ettiğin bir etkinlik yok
+                {subscribedEvents.length === 0
+                  ? 'takip ettiklerin bu sıralar sahada yok — keşfet sekmesinden ekleyebilirsin'
+                  : 'bugün takip ettiğin bir etkinlik yok'}
               </p>
             </div>
           )}
@@ -336,7 +340,9 @@ export default function Home() {
         {timeFilter !== 'today' && filtered.length === 0 && (
           <div className="text-center py-16">
             <p className="text-body text-muted-foreground">
-              bu kriterlerde etkinlik yok
+              {subscribedEvents.length === 0
+                ? 'takip ettiklerin bu sıralar sahada yok'
+                : 'bu kriterlerde etkinlik yok'}
             </p>
           </div>
         )}
