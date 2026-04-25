@@ -235,7 +235,9 @@ export default function Home() {
             <p className="text-body text-muted-foreground mt-1">
               {todayCount > 0
                 ? `bugün ${todayCount} etkinlik var`
-                : 'bugün takip ettiğin bir şey yok'}
+                : tomorrowEvents.length > 0
+                ? `bugün sakin, yarın ${tomorrowEvents.length} etkinlik var`
+                : 'şu an takip ettiğin bir etkinlik yok'}
             </p>
           </div>
           <Link
@@ -287,7 +289,7 @@ export default function Home() {
           </section>
         )}
 
-        {/* BUGÜN section */}
+        {/* BUGÜN section — only when today actually has something */}
         {timeFilter === 'today' && upcomingToday.length > 0 && (
           <section>
             <h2 className="text-micro uppercase text-muted-foreground tracking-wider mb-3">
@@ -305,7 +307,20 @@ export default function Home() {
           </section>
         )}
 
-        {/* YARIN preview (only on today filter) */}
+        {/* Inline "bugün sakin" hint when today is empty but tomorrow has
+            something. Without this the YARIN section feels orphaned. */}
+        {timeFilter === 'today' &&
+          liveEvents.length === 0 &&
+          upcomingToday.length === 0 &&
+          tomorrowEvents.length > 0 && (
+            <p className="text-caption text-muted-foreground -mb-3">
+              bugün sakin — yarın {tomorrowEvents.length} etkinlik var ↓
+            </p>
+          )}
+
+        {/* YARIN section — header label adapts depending on whether
+            today already has cards (then it's a preview) or today is
+            empty (then yarın IS the main list). */}
         {timeFilter === 'today' && tomorrowEvents.length > 0 && (
           <section>
             <h2 className="text-micro uppercase text-muted-foreground tracking-wider mb-3">
@@ -336,15 +351,17 @@ export default function Home() {
           </div>
         )}
 
-        {/* Empty states */}
-        {timeFilter === 'today' && liveEvents.length === 0 && upcomingToday.length === 0 && (
-          <div className="text-center py-12">
-            <p className="text-body text-muted-foreground">
-              bugün takip ettiğin bir etkinlik yok
-              {tomorrowEvents.length > 0 ? ' — yarına bak ↓' : ''}
-            </p>
-          </div>
-        )}
+        {/* Hard empty state — today AND tomorrow are both empty. */}
+        {timeFilter === 'today' &&
+          liveEvents.length === 0 &&
+          upcomingToday.length === 0 &&
+          tomorrowEvents.length === 0 && (
+            <div className="text-center py-12">
+              <p className="text-body text-muted-foreground">
+                bugün ve yarın takip ettiğin bir etkinlik yok
+              </p>
+            </div>
+          )}
 
         {timeFilter !== 'today' && filtered.length === 0 && (
           <div className="text-center py-16">
