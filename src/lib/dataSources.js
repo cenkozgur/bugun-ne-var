@@ -322,6 +322,77 @@ export function buildStaticTeamSeeds() {
   return out;
 }
 
+// MotoGP 2026 calendar. Source: en.wikipedia.org/wiki/2026_MotoGP_World_Championship.
+// We seed RACE events for all three classes (MotoGP, Moto2, Moto3) on the
+// Sunday of each weekend. Practice + qualifying are intentionally skipped
+// — most users follow the race, not Friday FP1. Race time defaults to
+// 14:00 local TR (typical EU race window); precise times can be patched
+// later if upstream API surfaces them.
+const MOTOGP_2026 = [
+  // [round, gpName, circuit, country, raceISO]
+  [1,  'Tayland GP',            'Chang Uluslararası',          'Tayland',     '2026-03-01'],
+  [2,  'Brezilya GP',            'Autódromo Ayrton Senna',      'Brezilya',    '2026-03-22'],
+  [3,  'Amerika GP',             'Circuit of the Americas',     'ABD',         '2026-03-29'],
+  [4,  'İspanya GP',             'Jerez',                       'İspanya',     '2026-04-26'],
+  [5,  'Fransa GP',              'Le Mans',                     'Fransa',      '2026-05-10'],
+  [6,  'Katalonya GP',           'Barcelona-Catalunya',         'İspanya',     '2026-05-17'],
+  [7,  'İtalya GP',              'Mugello',                     'İtalya',      '2026-05-31'],
+  [8,  'Macaristan GP',          'Balaton Park',                'Macaristan',  '2026-06-07'],
+  [9,  'Çekya GP',               'Brno',                        'Çekya',       '2026-06-21'],
+  [10, 'Hollanda GP',            'TT Circuit Assen',            'Hollanda',    '2026-06-28'],
+  [11, 'Almanya GP',             'Sachsenring',                 'Almanya',     '2026-07-12'],
+  [12, 'Britanya GP',            'Silverstone',                 'Birleşik Krallık','2026-08-09'],
+  [13, 'Aragon GP',              'MotorLand Aragón',            'İspanya',     '2026-08-30'],
+  [14, 'San Marino GP',          'Misano',                      'San Marino',  '2026-09-13'],
+  [15, 'Avusturya GP',           'Red Bull Ring',               'Avusturya',   '2026-09-20'],
+  [16, 'Japonya GP',             'Motegi',                      'Japonya',     '2026-10-04'],
+  [17, 'Endonezya GP',           'Mandalika',                   'Endonezya',   '2026-10-11'],
+  [18, 'Avustralya GP',          'Phillip Island',              'Avustralya',  '2026-10-25'],
+  [19, 'Malezya GP',             'Sepang',                      'Malezya',     '2026-11-01'],
+  [20, 'Katar GP',               'Lusail',                      'Katar',       '2026-11-08'],
+  [21, 'Portekiz GP',            'Portimão',                    'Portekiz',    '2026-11-22'],
+  [22, 'Valencia GP',            'Ricardo Tormo',               'İspanya',     '2026-11-29'],
+];
+
+// Three classes share the same race weekend. Times are typical broadcast
+// slots in TR (UTC+3); some flyaways shift earlier.
+const MOTO_CLASSES = [
+  { slug: 'motogp', label: 'MotoGP',  hour: 14, broadcaster: 'S Sport 2' },
+  { slug: 'moto2',  label: 'Moto2',   hour: 12, broadcaster: 'S Sport 2' },
+  { slug: 'moto3',  label: 'Moto3',   hour: 11, broadcaster: 'S Sport 2' },
+];
+
+/**
+ * Build MotoGP / Moto2 / Moto3 race events for the season.
+ * Each round produces 3 events (one per class). The competition_ref
+ * groups rounds by class so a user who only wants Moto3 can pick that
+ * competition and ignore the premier class.
+ */
+export function buildMotoGpEvents() {
+  const events = [];
+  for (const [round, gpName, circuit, country, dateStr] of MOTOGP_2026) {
+    for (const cls of MOTO_CLASSES) {
+      // Skip events more than 12 months old (housekeeping; current code
+      // only ever has the future season).
+      const t = new Date(`${dateStr}T${String(cls.hour).padStart(2, '0')}:00:00+03:00`).getTime();
+      if (!Number.isFinite(t)) continue;
+      events.push({
+        title: `${gpName} — ${cls.label} Yarışı`,
+        competition_name: `${cls.label} 2026`,
+        start_time: new Date(t).toISOString(),
+        broadcaster: cls.broadcaster,
+        venue: `${circuit}, ${country}`,
+        is_live: false,
+        _category_slug: 'motogp',
+        _source_id: `${cls.slug}:2026:${round}:Race`,
+        _competition_ref: `series:${cls.slug}:2026`,
+        _competition_name: `${cls.label} 2026`,
+      });
+    }
+  }
+  return events;
+}
+
 // Hand-curated TV events. There's no usable Turkish EPG API, so we keep
 // a small list that gets refreshed when the user opens /seed. Add more
 // here as new must-watch broadcasts are announced.

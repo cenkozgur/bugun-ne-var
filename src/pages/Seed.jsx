@@ -6,6 +6,7 @@ import {
   fetchUpcomingF1Sessions,
   buildTvEvents,
   buildStaticTeamSeeds,
+  buildMotoGpEvents,
 } from '@/lib/dataSources';
 
 /**
@@ -72,9 +73,10 @@ export default function Seed() {
       const today = new Date();
       const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
-      const [football, f1, tv] = await Promise.allSettled([
+      const [football, f1, motogp, tv] = await Promise.allSettled([
         fetchUpcomingFootballMatches(),
-        fetchUpcomingF1Sessions({ daysAhead: 7 }),
+        fetchUpcomingF1Sessions(),
+        Promise.resolve(buildMotoGpEvents()),
         Promise.resolve(buildTvEvents({ today, tomorrow })),
       ]);
 
@@ -90,6 +92,19 @@ export default function Seed() {
         collected.push(...f1.value);
       } else {
         append(`  ! F1 kaynağı: ${f1.reason?.message || f1.reason}`);
+      }
+      if (motogp.status === 'fulfilled') {
+        // MotoGP/Moto2/Moto3 calendar is full season; only the upcoming
+        // ones matter for the user. Filter to events not yet finished
+        // (start_time > now). Past races would just clutter "tümü".
+        const now = Date.now();
+        const upcomingMoto = motogp.value.filter(
+          (e) => new Date(e.start_time).getTime() > now
+        );
+        append(`  🏍 ${upcomingMoto.length} MotoGP/Moto2/Moto3 yarışı`);
+        collected.push(...upcomingMoto);
+      } else {
+        append(`  ! MotoGP kaynağı: ${motogp.reason?.message || motogp.reason}`);
       }
       if (tv.status === 'fulfilled') {
         append(`  📺 ${tv.value.length} TV etkinliği`);
