@@ -97,7 +97,7 @@ function competitionRef(league) {
  * external_refs so the subscription filter can match at any level
  * (league or specific team).
  */
-export async function fetchUpcomingFootballMatches({ daysAhead = 2 } = {}) {
+export async function fetchUpcomingFootballMatches({ daysAhead = 14 } = {}) {
   const cutoff = Date.now() + daysAhead * 24 * 60 * 60 * 1000;
 
   const url = `${FOOTBALL_API_BASE}/matches?upcoming=true&limit=200`;
