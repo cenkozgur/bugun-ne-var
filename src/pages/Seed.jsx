@@ -103,21 +103,115 @@ export default function Seed() {
       }
       append(`  ${toDelete.length} kayıt silindi. ✓`);
 
+      // Build the unique set of competitions + entities seen across all
+      // collected events, then upsert them. We dedupe by external_ref so
+      // re-runs don't create duplicates. Once persisted, we map ref→id so
+      // the Event rows we write can store actual ids (kept for future
+      // queries) while still carrying *_ref strings for fast filtering.
+      append('→ Lig ve takım kayıtları hazırlanıyor…');
+
+      const existingComps = await base44.entities.Competition.list();
+      const compByRef = new Map();
+      for (const c of existingComps) {
+        if (c.external_ref) compByRef.set(c.external_ref, c);
+      }
+
+      const existingEnts = await base44.entities.TrackedEntity.list();
+      const entByRef = new Map();
+      for (const e of existingEnts) {
+        if (e.external_ref) entByRef.set(e.external_ref, e);
+      }
+
+      const wantComps = new Map(); // ref → { name, category_slug }
+      const wantEnts = new Map();  // ref → { name, category_slug, type }
+      for (const seed of collected) {
+        if (seed._competition_ref && !wantComps.has(seed._competition_ref)) {
+          wantComps.set(seed._competition_ref, {
+            name: seed._competition_name || seed.competition_name,
+            category_slug: seed._category_slug,
+          });
+        }
+        for (const side of ['home', 'away']) {
+          const ref = seed[`_${side}_entity_ref`];
+          const name = seed[`_${side}_entity_name`];
+          if (ref && name && !wantEnts.has(ref)) {
+            wantEnts.set(ref, { name, category_slug: seed._category_slug, type: 'team' });
+          }
+        }
+      }
+
+      let compCreated = 0;
+      for (const [ref, spec] of wantComps) {
+        if (compByRef.has(ref)) continue;
+        const cat = bySlug[spec.category_slug];
+        if (!cat) continue;
+        try {
+          const created = await base44.entities.Competition.create({
+            name: spec.name,
+            category_id: cat.id,
+            external_ref: ref,
+          });
+          compByRef.set(ref, created);
+          compCreated += 1;
+        } catch (err) {
+          append(`  ! Competition: ${spec.name} (${err?.message || err})`);
+        }
+      }
+      append(`  ${compCreated} yeni lig + ${compByRef.size - compCreated} mevcut. ✓`);
+
+      let entCreated = 0;
+      for (const [ref, spec] of wantEnts) {
+        if (entByRef.has(ref)) continue;
+        const cat = bySlug[spec.category_slug];
+        if (!cat) continue;
+        try {
+          const created = await base44.entities.TrackedEntity.create({
+            name: spec.name,
+            category_id: cat.id,
+            type: spec.type,
+            external_ref: ref,
+          });
+          entByRef.set(ref, created);
+          entCreated += 1;
+        } catch (err) {
+          append(`  ! Entity: ${spec.name} (${err?.message || err})`);
+        }
+      }
+      append(`  ${entCreated} yeni takım + ${entByRef.size - entCreated} mevcut. ✓`);
+
       append(`→ ${collected.length} Event yazılıyor…`);
       let okCount = 0;
       for (const seed of collected) {
-        const { _category_slug, _source_id, ...rest } = seed;
+        const {
+          _category_slug, _source_id,
+          _competition_ref, _competition_name,
+          _home_entity_ref, _home_entity_name,
+          _away_entity_ref, _away_entity_name,
+          ...rest
+        } = seed;
         const cat = bySlug[_category_slug];
         if (!cat) {
           append(`  ! kategori yok (${_category_slug}): ${seed.title}`);
           continue;
         }
+        const payload = {
+          ...rest,
+          category_id: cat.id,
+          external_ref: _source_id,
+        };
+        // Resolve ids (best-effort) + always write the *_ref strings so
+        // the subscription filter can match purely on refs without a
+        // round-trip through ids.
+        if (_competition_ref) {
+          payload.competition_ref = _competition_ref;
+          const c = compByRef.get(_competition_ref);
+          if (c?.id) payload.competition_id = c.id;
+        }
+        if (_home_entity_ref) payload.home_entity_ref = _home_entity_ref;
+        if (_away_entity_ref) payload.away_entity_ref = _away_entity_ref;
+
         try {
-          await base44.entities.Event.create({
-            ...rest,
-            category_id: cat.id,
-            external_ref: _source_id,
-          });
+          await base44.entities.Event.create(payload);
           okCount += 1;
         } catch (err) {
           append(`  ! yazılamadı: ${seed.title} (${err?.message || err})`);

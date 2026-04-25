@@ -40,15 +40,55 @@ export default function Home() {
     return map;
   }, [categories]);
 
-  const subscribedCategoryIds = useMemo(() => {
-    const set = new Set();
+  const { data: comps = [] } = useQuery({
+    queryKey: ['competitions'],
+    queryFn: () => base44.entities.Competition.list(),
+  });
+  const { data: ents = [] } = useQuery({
+    queryKey: ['entities'],
+    queryFn: () => base44.entities.TrackedEntity.list(),
+  });
+
+  // Index by id so we can resolve target_id → external_ref for matching.
+  const compById = useMemo(() => {
+    const m = new Map();
+    comps.forEach((c) => m.set(c.id, c));
+    return m;
+  }, [comps]);
+  const entById = useMemo(() => {
+    const m = new Map();
+    ents.forEach((e) => m.set(e.id, e));
+    return m;
+  }, [ents]);
+
+  // Subscription buckets — separated so the filter can match an event if
+  // ANY of category/competition/entity is followed.
+  const subBuckets = useMemo(() => {
+    const cats = new Set();
+    const compRefs = new Set();
+    const entRefs = new Set();
+    const compCats = new Set(); // categories implicitly followed via competitions/entities
     for (const sub of subscriptions) {
-      if (sub.target_type === 'category' && sub.target_id) {
-        set.add(sub.target_id);
+      if (!sub.target_id) continue;
+      if (sub.target_type === 'category') {
+        cats.add(sub.target_id);
+      } else if (sub.target_type === 'competition') {
+        const c = compById.get(sub.target_id);
+        if (c?.external_ref) compRefs.add(c.external_ref);
+        if (c?.category_id) compCats.add(c.category_id);
+      } else if (sub.target_type === 'entity') {
+        const e = entById.get(sub.target_id);
+        if (e?.external_ref) entRefs.add(e.external_ref);
+        if (e?.category_id) compCats.add(e.category_id);
       }
     }
+    return { cats, compRefs, entRefs, compCats };
+  }, [subscriptions, compById, entById]);
+
+  const subscribedCategoryIds = useMemo(() => {
+    const set = new Set([...subBuckets.cats, ...subBuckets.compCats]);
     return set;
-  }, [subscriptions]);
+  }, [subBuckets]);
 
   // The actual category objects the user follows — feed for the chip row.
   const subscribedCategories = useMemo(
@@ -62,13 +102,28 @@ export default function Home() {
     rehydrateReminders(byId);
   }, [events]);
 
-  // Layer 1: only events from subscribed categories.
+  // Layer 1: subscription gate. An event passes if ANY of:
+  //   - its category is followed (blanket sub for that category), OR
+  //   - its competition_ref is followed, OR
+  //   - either team's entity_ref is followed.
   // Layer 2: optionally narrow to a single category chip.
   // Layer 3: search/competition/prime-time filter modal.
   const subscribedEvents = useMemo(() => {
-    if (subscribedCategoryIds.size === 0) return [];
-    return events.filter((e) => subscribedCategoryIds.has(e.category_id));
-  }, [events, subscribedCategoryIds]);
+    if (
+      subBuckets.cats.size === 0 &&
+      subBuckets.compRefs.size === 0 &&
+      subBuckets.entRefs.size === 0
+    ) {
+      return [];
+    }
+    return events.filter((e) => {
+      if (subBuckets.cats.has(e.category_id)) return true;
+      if (e.competition_ref && subBuckets.compRefs.has(e.competition_ref)) return true;
+      if (e.home_entity_ref && subBuckets.entRefs.has(e.home_entity_ref)) return true;
+      if (e.away_entity_ref && subBuckets.entRefs.has(e.away_entity_ref)) return true;
+      return false;
+    });
+  }, [events, subBuckets]);
 
   const categoryNarrowed = useMemo(() => {
     if (!activeCategoryId) return subscribedEvents;

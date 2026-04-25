@@ -18,6 +18,10 @@
         "program"
       ],
       "description": "Type of tracked entity"
+    },
+    "external_ref": {
+      "type": "string",
+      "description": "Stable upstream id used for /seed dedup (e.g. team:T1:Fenerbahce)"
     }
   },
   "required": [

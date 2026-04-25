@@ -37,25 +37,77 @@ export default function Yakinda() {
     return map;
   }, [categories]);
 
-  const subscribedCategoryIds = useMemo(() => {
-    const set = new Set();
-    for (const s of subscriptions) {
-      if (s.target_type === 'category' && s.target_id) set.add(s.target_id);
+  const { data: comps = [] } = useQuery({
+    queryKey: ['competitions'],
+    queryFn: () => base44.entities.Competition.list(),
+  });
+  const { data: ents = [] } = useQuery({
+    queryKey: ['entities'],
+    queryFn: () => base44.entities.TrackedEntity.list(),
+  });
+
+  const compById = useMemo(() => {
+    const m = new Map();
+    comps.forEach((c) => m.set(c.id, c));
+    return m;
+  }, [comps]);
+  const entById = useMemo(() => {
+    const m = new Map();
+    ents.forEach((e) => m.set(e.id, e));
+    return m;
+  }, [ents]);
+
+  const subBuckets = useMemo(() => {
+    const cats = new Set();
+    const compRefs = new Set();
+    const entRefs = new Set();
+    const compCats = new Set();
+    for (const sub of subscriptions) {
+      if (!sub.target_id) continue;
+      if (sub.target_type === 'category') {
+        cats.add(sub.target_id);
+      } else if (sub.target_type === 'competition') {
+        const c = compById.get(sub.target_id);
+        if (c?.external_ref) compRefs.add(c.external_ref);
+        if (c?.category_id) compCats.add(c.category_id);
+      } else if (sub.target_type === 'entity') {
+        const e = entById.get(sub.target_id);
+        if (e?.external_ref) entRefs.add(e.external_ref);
+        if (e?.category_id) compCats.add(e.category_id);
+      }
     }
-    return set;
-  }, [subscriptions]);
+    return { cats, compRefs, entRefs, compCats };
+  }, [subscriptions, compById, entById]);
+
+  const subscribedCategoryIds = useMemo(
+    () => new Set([...subBuckets.cats, ...subBuckets.compCats]),
+    [subBuckets]
+  );
 
   const subscribedCategories = useMemo(
     () => categories.filter((c) => subscribedCategoryIds.has(c.id)),
     [categories, subscribedCategoryIds]
   );
 
-  // Subscription gate first, then category narrowing, then filter modal,
-  // then "in the future and not currently live" + sort.
+  // Subscription gate (OR across category/competition/entity), then
+  // category narrowing, then filter modal, then "in the future and not
+  // currently live" + sort.
   const subscribed = useMemo(() => {
-    if (subscribedCategoryIds.size === 0) return [];
-    return events.filter((e) => subscribedCategoryIds.has(e.category_id));
-  }, [events, subscribedCategoryIds]);
+    if (
+      subBuckets.cats.size === 0 &&
+      subBuckets.compRefs.size === 0 &&
+      subBuckets.entRefs.size === 0
+    ) {
+      return [];
+    }
+    return events.filter((e) => {
+      if (subBuckets.cats.has(e.category_id)) return true;
+      if (e.competition_ref && subBuckets.compRefs.has(e.competition_ref)) return true;
+      if (e.home_entity_ref && subBuckets.entRefs.has(e.home_entity_ref)) return true;
+      if (e.away_entity_ref && subBuckets.entRefs.has(e.away_entity_ref)) return true;
+      return false;
+    });
+  }, [events, subBuckets]);
 
   const categoryNarrowed = useMemo(() => {
     if (!activeCategoryId) return subscribed;

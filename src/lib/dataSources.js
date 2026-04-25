@@ -14,6 +14,7 @@ const JOLPICA_BASE = 'https://api.jolpi.ca/ergast/f1';
 
 // League codes used by football-predictor → display labels we want on cards.
 const LEAGUE_LABELS = {
+  T1: 'Süper Lig',
   E0: 'Premier League',
   E1: 'Championship',
   SP1: 'La Liga',
@@ -27,6 +28,7 @@ const LEAGUE_LABELS = {
 // Best-guess Türkiye broadcaster per league. Real EPG data is messy —
 // these are the "almost always" channels for the major events.
 const LEAGUE_BROADCASTERS = {
+  T1: 'beIN Sports HD 1',
   E0: 'S Sport / S Sport Plus',
   E1: 'S Sport',
   SP1: 'S Sport',
@@ -37,10 +39,28 @@ const LEAGUE_BROADCASTERS = {
   P1: 'S Sport',
 };
 
+// Stable team key: ASCII slug derived from team name + league.
+// Example: "Fenerbahçe" in T1 → "team:T1:fenerbahce"
+function teamRef(league, name) {
+  if (!name) return '';
+  const slug = name
+    .toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return `team:${league}:${slug}`;
+}
+
+function competitionRef(league) {
+  return `league:${league}`;
+}
+
 /**
  * Fetch upcoming football matches across all supported leagues from our
  * own backend. Returns a flat array of normalised event objects ready to
- * push into Base44 Event entity.
+ * push into Base44 Event entity. Each event carries home/away/competition
+ * external_refs so the subscription filter can match at any level
+ * (league or specific team).
  */
 export async function fetchUpcomingFootballMatches({ daysAhead = 2 } = {}) {
   const cutoff = Date.now() + daysAhead * 24 * 60 * 60 * 1000;
@@ -67,6 +87,12 @@ export async function fetchUpcomingFootballMatches({ daysAhead = 2 } = {}) {
       live_status: m.live_minute ? `${m.live_minute}'` : '',
       _category_slug: 'futbol',
       _source_id: `football:${m.id}`,
+      _competition_ref: competitionRef(m.league),
+      _competition_name: LEAGUE_LABELS[m.league] || m.league,
+      _home_entity_ref: teamRef(m.league, m.home_team),
+      _home_entity_name: m.home_team,
+      _away_entity_ref: teamRef(m.league, m.away_team),
+      _away_entity_name: m.away_team,
     }));
 }
 
