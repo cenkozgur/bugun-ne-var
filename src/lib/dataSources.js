@@ -307,8 +307,97 @@ const STATIC_LEAGUE_ROSTERS = {
   ],
 };
 
+// NBA — all 30 franchises grouped by conference.
+// Onboarding shows them under "NBA" competition. Fixtures will come from
+// BALLDONTLIE in a follow-up commit when an API key is provisioned.
+const NBA_TEAMS = [
+  // Eastern
+  ['Boston Celtics', 'BOS'], ['Brooklyn Nets', 'BKN'],
+  ['New York Knicks', 'NYK'], ['Philadelphia 76ers', 'PHI'],
+  ['Toronto Raptors', 'TOR'], ['Chicago Bulls', 'CHI'],
+  ['Cleveland Cavaliers', 'CLE'], ['Detroit Pistons', 'DET'],
+  ['Indiana Pacers', 'IND'], ['Milwaukee Bucks', 'MIL'],
+  ['Atlanta Hawks', 'ATL'], ['Charlotte Hornets', 'CHA'],
+  ['Miami Heat', 'MIA'], ['Orlando Magic', 'ORL'],
+  ['Washington Wizards', 'WAS'],
+  // Western
+  ['Denver Nuggets', 'DEN'], ['Minnesota Timberwolves', 'MIN'],
+  ['Oklahoma City Thunder', 'OKC'], ['Portland Trail Blazers', 'POR'],
+  ['Utah Jazz', 'UTA'], ['Golden State Warriors', 'GSW'],
+  ['LA Clippers', 'LAC'], ['Los Angeles Lakers', 'LAL'],
+  ['Phoenix Suns', 'PHX'], ['Sacramento Kings', 'SAC'],
+  ['Dallas Mavericks', 'DAL'], ['Houston Rockets', 'HOU'],
+  ['Memphis Grizzlies', 'MEM'], ['New Orleans Pelicans', 'NOP'],
+  ['San Antonio Spurs', 'SAS'],
+];
+
+// Volleyball — top Turkish clubs (Sultanlar Ligi + Efeler Ligi)
+// plus the international titans users tend to track during EuroLeague /
+// CEV final stages.
+const VOLLEYBALL_TEAMS = [
+  // Türk kadın (Sultanlar Ligi)
+  ['VakıfBank',           'VBK_W'],
+  ['Eczacıbaşı Dynavit',  'ECZ_W'],
+  ['Fenerbahçe Opet',     'FB_W'],
+  ['Galatasaray Daikin',  'GS_W'],
+  ['Türk Hava Yolları',   'THY_W'],
+  ['Beşiktaş Kadın',      'BJK_W'],
+  // Türk erkek (Efeler Ligi)
+  ['Halkbank',            'HALK_M'],
+  ['Ziraat Bankkart',     'ZB_M'],
+  ['Fenerbahçe HDI',      'FB_M'],
+  ['Galatasaray HDI',     'GS_M'],
+  ['Arkasspor',           'ARK_M'],
+  ['Tokat Belediye Plevne','TOKAT_M'],
+];
+
+// Tennis — top current ATP/WTA players. Onboarding lets users pick
+// favorites; tournament fixtures will surface their matches once
+// api-sports tennis is wired.
+const TENNIS_PLAYERS = [
+  // ATP
+  ['Jannik Sinner',     'sinner'],
+  ['Carlos Alcaraz',    'alcaraz'],
+  ['Novak Djokovic',    'djokovic'],
+  ['Daniil Medvedev',   'medvedev'],
+  ['Alexander Zverev',  'zverev'],
+  ['Stefanos Tsitsipas','tsitsipas'],
+  ['Andrey Rublev',     'rublev'],
+  ['Holger Rune',       'rune'],
+  ['Taylor Fritz',      'fritz'],
+  ['Casper Ruud',       'ruud'],
+  // WTA
+  ['Iga Świątek',       'swiatek'],
+  ['Aryna Sabalenka',   'sabalenka'],
+  ['Coco Gauff',        'gauff'],
+  ['Elena Rybakina',    'rybakina'],
+  ['Jessica Pegula',    'pegula'],
+  ['Ons Jabeur',        'jabeur'],
+  ['Madison Keys',      'keys'],
+  ['Qinwen Zheng',      'zheng'],
+  ['Jasmine Paolini',   'paolini'],
+  ['Mirra Andreeva',    'andreeva'],
+];
+
+// Tennis tournaments — Grand Slams + key ATP/WTA Masters where TR
+// broadcast usually lights up. Static dates per year so users can opt
+// in even before per-match fixtures land.
+const TENNIS_TOURNAMENTS_2026 = [
+  // [name, start, end, broadcaster]
+  ['Roland Garros',        '2026-05-24', '2026-06-07', 'S Sport / S Sport 2'],
+  ['Wimbledon',            '2026-06-29', '2026-07-12', 'S Sport'],
+  ['US Open',              '2026-08-24', '2026-09-06', 'S Sport'],
+  ['ATP Finals (Torino)',  '2026-11-08', '2026-11-15', 'S Sport'],
+  ['WTA Finals',           '2026-11-01', '2026-11-08', 'S Sport'],
+  ['Madrid Open',          '2026-04-22', '2026-05-04', 'S Sport'],
+  ['Roma Masters',         '2026-05-06', '2026-05-18', 'S Sport'],
+  ['Cincinnati Masters',   '2026-08-09', '2026-08-17', 'S Sport'],
+];
+
 export function buildStaticTeamSeeds() {
   const out = [];
+
+  // Football clubs (Big-5 + T1 + N1 + P1)
   for (const [league, roster] of Object.entries(STATIC_LEAGUE_ROSTERS)) {
     for (const [name, slugSeed] of roster) {
       out.push({
@@ -319,7 +408,69 @@ export function buildStaticTeamSeeds() {
       });
     }
   }
+
+  // NBA franchises
+  for (const [name, code] of NBA_TEAMS) {
+    out.push({
+      _category_slug: 'nba',
+      _entity_name: name,
+      _entity_ref: `team:nba:${code.toLowerCase()}`,
+      _competition_ref: 'league:nba',
+    });
+  }
+
+  // Volleyball clubs
+  for (const [name, code] of VOLLEYBALL_TEAMS) {
+    out.push({
+      _category_slug: 'voleybol',
+      _entity_name: name,
+      _entity_ref: `team:tr_vb:${code.toLowerCase()}`,
+      _competition_ref: 'league:tr_volleyball',
+    });
+  }
+
+  // Tennis players (TrackedEntity type=player)
+  for (const [name, slug] of TENNIS_PLAYERS) {
+    out.push({
+      _category_slug: 'tenis',
+      _entity_name: name,
+      _entity_ref: `player:atp_wta:${slug}`,
+      _competition_ref: 'tour:atp_wta',
+      _entity_type: 'player',
+    });
+  }
+
   return out;
+}
+
+// Standalone competition + tournament builder. NBA & Tennis tournaments
+// don't have per-match data yet (no API key), but listing the umbrella
+// competition + each tournament lets the user pick them in onboarding
+// step 2 and shows the schedule window as an event in the meantime.
+export function buildStaticTournamentEvents() {
+  const events = [];
+  const now = Date.now();
+
+  // Tennis tournaments — emit one event per tournament marking its start
+  // date. So a user who picks "Wimbledon" gets reminded when it begins.
+  for (const [name, startStr, endStr, broadcaster] of TENNIS_TOURNAMENTS_2026) {
+    const t = new Date(`${startStr}T13:00:00+03:00`).getTime();
+    if (!Number.isFinite(t) || t < now - 24 * 60 * 60 * 1000) continue;
+    events.push({
+      title: `${name} — Başlangıç`,
+      competition_name: name,
+      start_time: new Date(t).toISOString(),
+      broadcaster,
+      venue: '',
+      is_live: false,
+      _category_slug: 'tenis',
+      _source_id: `tennis:tournament:${name.toLowerCase().replace(/\s+/g, '-')}:start`,
+      _competition_ref: `tournament:tennis:${name.toLowerCase().replace(/\s+/g, '-')}`,
+      _competition_name: name,
+    });
+  }
+
+  return events;
 }
 
 // MotoGP 2026 calendar. Source: en.wikipedia.org/wiki/2026_MotoGP_World_Championship.
@@ -387,6 +538,58 @@ export function buildMotoGpEvents() {
         _source_id: `${cls.slug}:2026:${round}:Race`,
         _competition_ref: `series:${cls.slug}:2026`,
         _competition_name: `${cls.label} 2026`,
+      });
+    }
+  }
+  return events;
+}
+
+// World Superbike 2026 calendar. Source: Wikipedia. Each round has
+// Race 1 (Sat), Superpole + Race 2 (Sun) — we seed Sunday's main race
+// only to keep the list lean. Race 1 / Superpole can be added later if
+// users ask.
+const WSBK_2026 = [
+  [1,  'Avustralya',     'Phillip Island',          'Avustralya', '2026-02-22'],
+  [2,  'Portekiz',       'Algarve',                  'Portekiz',  '2026-03-29'],
+  [3,  'Hollanda',       'TT Circuit Assen',         'Hollanda',  '2026-04-19'],
+  [4,  'Macaristan',     'Balaton Park',             'Macaristan','2026-05-03'],
+  [5,  'Çekya',          'Autodrom Most',            'Çekya',     '2026-05-17'],
+  [6,  'Aragón',         'MotorLand Aragón',         'İspanya',   '2026-05-31'],
+  [7,  'Emilia-Romagna', 'Misano',                   'İtalya',    '2026-06-14'],
+  [8,  'Birleşik Krallık','Donington Park',          'Birleşik Krallık','2026-07-12'],
+  [9,  'Fransa',         'Magny-Cours',              'Fransa',    '2026-09-06'],
+  [10, 'İtalya',         'Cremona',                  'İtalya',    '2026-09-27'],
+  [11, 'Estoril',        'Estoril',                  'Portekiz',  '2026-10-11'],
+  [12, 'İspanya',        'Jerez',                    'İspanya',   '2026-10-18'],
+];
+
+// WSBK weekend has 3 broadcast sessions: Race 1 Sat afternoon,
+// Superpole Race Sun morning (10-lap sprint), Race 2 Sun afternoon.
+// All seeded so users can hatırlat all three. Sat date = Sunday - 1.
+const WSBK_SESSIONS = [
+  { key: 'Race1',     label: 'Yarış 1',         dayOffset: -1, hour: 14 }, // Saturday afternoon TR
+  { key: 'Superpole', label: 'Superpole Yarış', dayOffset:  0, hour: 13 }, // Sunday lunchtime TR
+  { key: 'Race2',     label: 'Yarış 2',         dayOffset:  0, hour: 16 }, // Sunday afternoon TR
+];
+
+export function buildWsbkEvents() {
+  const events = [];
+  for (const [round, roundName, circuit, country, dateStr] of WSBK_2026) {
+    const sundayMs = new Date(`${dateStr}T00:00:00+03:00`).getTime();
+    if (!Number.isFinite(sundayMs)) continue;
+    for (const s of WSBK_SESSIONS) {
+      const t = sundayMs + s.dayOffset * 24 * 60 * 60 * 1000 + s.hour * 60 * 60 * 1000;
+      events.push({
+        title: `${roundName} — ${s.label}`,
+        competition_name: 'WorldSBK 2026',
+        start_time: new Date(t).toISOString(),
+        broadcaster: 'S Sport',
+        venue: `${circuit}, ${country}`,
+        is_live: false,
+        _category_slug: 'motogp', // share the moto category — same audience
+        _source_id: `wsbk:2026:${round}:${s.key}`,
+        _competition_ref: 'series:wsbk:2026',
+        _competition_name: 'WorldSBK 2026',
       });
     }
   }

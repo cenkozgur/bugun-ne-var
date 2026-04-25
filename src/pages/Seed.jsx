@@ -7,6 +7,8 @@ import {
   buildTvEvents,
   buildStaticTeamSeeds,
   buildMotoGpEvents,
+  buildWsbkEvents,
+  buildStaticTournamentEvents,
 } from '@/lib/dataSources';
 
 /**
@@ -73,14 +75,23 @@ export default function Seed() {
       const today = new Date();
       const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
-      const [football, f1, motogp, tv] = await Promise.allSettled([
+      const [football, f1, motogp, wsbk, tournaments, tv] = await Promise.allSettled([
         fetchUpcomingFootballMatches(),
         fetchUpcomingF1Sessions(),
         Promise.resolve(buildMotoGpEvents()),
+        Promise.resolve(buildWsbkEvents()),
+        Promise.resolve(buildStaticTournamentEvents()),
         Promise.resolve(buildTvEvents({ today, tomorrow })),
       ]);
 
       const collected = [];
+      // Helper to filter the static-calendar sources down to upcoming
+      // events only — past races just bloat "tümü" and the dedupe loop.
+      const futureOnly = (arr) => {
+        const now = Date.now();
+        return arr.filter((e) => new Date(e.start_time).getTime() > now);
+      };
+
       if (football.status === 'fulfilled') {
         append(`  ⚽ ${football.value.length} futbol`);
         collected.push(...football.value);
@@ -94,17 +105,23 @@ export default function Seed() {
         append(`  ! F1 kaynağı: ${f1.reason?.message || f1.reason}`);
       }
       if (motogp.status === 'fulfilled') {
-        // MotoGP/Moto2/Moto3 calendar is full season; only the upcoming
-        // ones matter for the user. Filter to events not yet finished
-        // (start_time > now). Past races would just clutter "tümü".
-        const now = Date.now();
-        const upcomingMoto = motogp.value.filter(
-          (e) => new Date(e.start_time).getTime() > now
-        );
-        append(`  🏍 ${upcomingMoto.length} MotoGP/Moto2/Moto3 yarışı`);
-        collected.push(...upcomingMoto);
+        const upcoming = futureOnly(motogp.value);
+        append(`  🏍 ${upcoming.length} MotoGP/Moto2/Moto3 yarışı`);
+        collected.push(...upcoming);
       } else {
         append(`  ! MotoGP kaynağı: ${motogp.reason?.message || motogp.reason}`);
+      }
+      if (wsbk.status === 'fulfilled') {
+        const upcoming = futureOnly(wsbk.value);
+        append(`  🏍 ${upcoming.length} WorldSBK seansı`);
+        collected.push(...upcoming);
+      } else {
+        append(`  ! WSBK kaynağı: ${wsbk.reason?.message || wsbk.reason}`);
+      }
+      if (tournaments.status === 'fulfilled') {
+        const upcoming = futureOnly(tournaments.value);
+        append(`  🎾 ${upcoming.length} turnuva (tenis vs.)`);
+        collected.push(...upcoming);
       }
       if (tv.status === 'fulfilled') {
         append(`  📺 ${tv.value.length} TV etkinliği`);
@@ -214,15 +231,15 @@ export default function Seed() {
         }
       }
 
-      // Layer in static team rosters (e.g. all 18 Süper Lig clubs even
-      // when only 8 are scheduled this week). Doesn't override fixture-
-      // sourced entries because the for-loop above already filled them.
+      // Layer in static rosters: full football leagues, NBA franchises,
+      // volleyball clubs, tennis players, etc. _entity_type defaults to
+      // 'team' but tennis players carry 'player' explicitly.
       for (const seed of buildStaticTeamSeeds()) {
         if (!wantEnts.has(seed._entity_ref)) {
           wantEnts.set(seed._entity_ref, {
             name: seed._entity_name,
             category_slug: seed._category_slug,
-            type: 'team',
+            type: seed._entity_type || 'team',
             competition_ref: seed._competition_ref,
           });
         }
