@@ -307,20 +307,11 @@ export default function Home() {
           </section>
         )}
 
-        {/* Inline "bugün sakin" hint when today is empty but tomorrow has
-            something. Without this the YARIN section feels orphaned. */}
-        {timeFilter === 'today' &&
-          liveEvents.length === 0 &&
-          upcomingToday.length === 0 &&
-          tomorrowEvents.length > 0 && (
-            <p className="text-caption text-muted-foreground -mb-3">
-              bugün sakin — yarın {tomorrowEvents.length} etkinlik var ↓
-            </p>
-          )}
-
         {/* YARIN section — header label adapts depending on whether
             today already has cards (then it's a preview) or today is
-            empty (then yarın IS the main list). */}
+            empty (then yarın IS the main list). The header subline
+            already says "bugün sakin, yarın N etkinlik var" so we don't
+            add a second hint here. */}
         {timeFilter === 'today' && tomorrowEvents.length > 0 && (
           <section>
             <h2 className="text-micro uppercase text-muted-foreground tracking-wider mb-3">
