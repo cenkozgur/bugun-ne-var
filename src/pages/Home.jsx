@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { Settings, Loader2, Compass } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { isToday, isTomorrow, isThisWeek, isAfter, parseISO } from 'date-fns';
+import { isToday, isTomorrow, isAfter, parseISO } from 'date-fns';
 import { getGreeting } from '@/lib/useTheme';
 import FilterChips from '@/components/home/FilterChips';
 import CategoryChips from '@/components/home/CategoryChips';
@@ -149,7 +149,13 @@ export default function Home() {
         const d = parseISO(e.start_time);
         if (timeFilter === 'today') return isToday(d) || e.is_live;
         if (timeFilter === 'tomorrow') return isTomorrow(d);
-        if (timeFilter === 'week') return isThisWeek(d, { weekStartsOn: 1 });
+        if (timeFilter === 'week') {
+          // "Bu hafta" = next 7 days from now, not Mon-Sun calendar week.
+          // Calendar weeks confused users on Saturday/Sunday: Beşiktaş'ın
+          // Pazartesi maçı "gelecek hafta" sayılıp gizleniyordu.
+          const weekEnd = Date.now() + 7 * 24 * 60 * 60 * 1000;
+          return isAfter(d, new Date()) && d.getTime() <= weekEnd;
+        }
         if (timeFilter === 'all') return isAfter(d, new Date()) || e.is_live;
         return true;
       })
