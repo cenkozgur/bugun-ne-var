@@ -20,6 +20,28 @@ import {
  * Dedupes across runs via Event.external_ref so re-running doesn't bloat
  * the table. Old Events (>2 days past) are pruned.
  */
+// Base44's API rate-limits bursts of writes. Without throttling, a 60+
+// event seed run gets ~30 written then stalls with "Rate limit exceeded"
+// for the rest. Sleep briefly between calls + retry once on 429.
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+async function withRetry(fn, { retries = 3, baseDelay = 1500 } = {}) {
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    try {
+      return await fn();
+    } catch (err) {
+      const msg = String(err?.message || err);
+      const isRateLimit =
+        msg.toLowerCase().includes('rate limit') ||
+        msg.includes('429') ||
+        err?.status === 429;
+      if (!isRateLimit || attempt === retries) throw err;
+      // Exponential backoff: 1.5s, 3s, 6s
+      await sleep(baseDelay * 2 ** attempt);
+    }
+  }
+}
+
 export default function Seed() {
   const [status, setStatus] = useState('idle');
   const [log, setLog] = useState([]);
@@ -94,9 +116,13 @@ export default function Seed() {
           !e.external_ref && t >= cutoff && t <= upcomingWindow;
         return isStale || isOverwriting || isLegacyDemo;
       });
+      let delIdx = 0;
       for (const ev of toDelete) {
         try {
-          await base44.entities.Event.delete(ev.id);
+          await withRetry(() => base44.entities.Event.delete(ev.id));
+          delIdx += 1;
+          await sleep(60);
+          if (delIdx % 25 === 0) await sleep(800);
         } catch (err) {
           append(`  ! silinemedi: ${ev.title || ev.id} (${err?.message || err})`);
         }
@@ -146,13 +172,16 @@ export default function Seed() {
         const cat = bySlug[spec.category_slug];
         if (!cat) continue;
         try {
-          const created = await base44.entities.Competition.create({
-            name: spec.name,
-            category_id: cat.id,
-            external_ref: ref,
-          });
+          const created = await withRetry(() =>
+            base44.entities.Competition.create({
+              name: spec.name,
+              category_id: cat.id,
+              external_ref: ref,
+            })
+          );
           compByRef.set(ref, created);
           compCreated += 1;
+          await sleep(80);
         } catch (err) {
           append(`  ! Competition: ${spec.name} (${err?.message || err})`);
         }
@@ -160,19 +189,27 @@ export default function Seed() {
       append(`  ${compCreated} yeni lig + ${compByRef.size - compCreated} mevcut. ✓`);
 
       let entCreated = 0;
+      let entIdx = 0;
       for (const [ref, spec] of wantEnts) {
         if (entByRef.has(ref)) continue;
         const cat = bySlug[spec.category_slug];
         if (!cat) continue;
         try {
-          const created = await base44.entities.TrackedEntity.create({
-            name: spec.name,
-            category_id: cat.id,
-            type: spec.type,
-            external_ref: ref,
-          });
+          const created = await withRetry(() =>
+            base44.entities.TrackedEntity.create({
+              name: spec.name,
+              category_id: cat.id,
+              type: spec.type,
+              external_ref: ref,
+            })
+          );
           entByRef.set(ref, created);
           entCreated += 1;
+          entIdx += 1;
+          // Short pause after each + a longer breath every 20 to keep
+          // Base44's per-second cap happy on a 100-team initial seed.
+          await sleep(80);
+          if (entIdx % 20 === 0) await sleep(800);
         } catch (err) {
           append(`  ! Entity: ${spec.name} (${err?.message || err})`);
         }
@@ -181,6 +218,7 @@ export default function Seed() {
 
       append(`→ ${collected.length} Event yazılıyor…`);
       let okCount = 0;
+      let evIdx = 0;
       for (const seed of collected) {
         const {
           _category_slug, _source_id,
@@ -211,8 +249,11 @@ export default function Seed() {
         if (_away_entity_ref) payload.away_entity_ref = _away_entity_ref;
 
         try {
-          await base44.entities.Event.create(payload);
+          await withRetry(() => base44.entities.Event.create(payload));
           okCount += 1;
+          evIdx += 1;
+          await sleep(80);
+          if (evIdx % 20 === 0) await sleep(800);
         } catch (err) {
           append(`  ! yazılamadı: ${seed.title} (${err?.message || err})`);
         }

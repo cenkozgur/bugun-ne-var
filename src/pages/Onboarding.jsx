@@ -81,17 +81,20 @@ export default function Onboarding() {
   const finalize = async () => {
     setBusy(true);
     try {
-      // Wipe existing subscriptions so re-onboarding doesn't pile up.
+      // Sequential delete + create so Base44's per-second cap doesn't
+      // start dropping requests halfway through (observed during /seed).
+      const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
       const existing = await base44.entities.UserSubscription.list();
-      await Promise.all(
-        existing.map((s) =>
-          base44.entities.UserSubscription.delete(s.id).catch(() => null)
-        )
-      );
+      for (const s of existing) {
+        try {
+          await base44.entities.UserSubscription.delete(s.id);
+          await sleep(60);
+        } catch { /* ignore */ }
+      }
 
       const subs = [];
-
-      // For each selected category, decide the most specific level the
+      // For each selected category, write the most specific level the
       // user expressed:
       //   - any entity selected for this category → entity subs only
       //   - any competition selected for this category → competition subs only
@@ -116,9 +119,12 @@ export default function Onboarding() {
         subs.push({ target_type: 'category', target_id: catId, preset: 'all' });
       }
 
-      await Promise.all(
-        subs.map((s) => base44.entities.UserSubscription.create(s))
-      );
+      for (const s of subs) {
+        try {
+          await base44.entities.UserSubscription.create(s);
+          await sleep(80);
+        } catch { /* ignore — individual sub failure shouldn't block onboarding completion */ }
+      }
       navigate('/');
     } finally {
       setBusy(false);
