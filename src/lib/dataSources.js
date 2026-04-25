@@ -97,6 +97,117 @@ function competitionRef(league) {
  * external_refs so the subscription filter can match at any level
  * (league or specific team).
  */
+// ─── Basketball (NBA + EuroLeague + BSL) ────────────────────────────
+//
+// Backend feeds these via app.ingestion.api_sports_basketball into the
+// sport_events table. Read endpoint is /sport-events?sport=basketball.
+
+const BASKETBALL_LEAGUE_DISPLAY = {
+  NBA:        '🇺🇸 NBA',
+  EuroLeague: '🇪🇺 EuroLeague',
+  BSL:        '🇹🇷 Basketbol Süper Ligi',
+};
+
+// Internal code → competition_ref + team_ref namespace prefix. These
+// MUST match the values used in buildStaticTeamSeeds() so subscriptions
+// resolve regardless of whether the team was first registered via the
+// static roster or via a fixture.
+const BASKETBALL_LEAGUE_REFS = {
+  NBA:        { compRef: 'league:nba',        teamSlug: 'nba' },
+  EuroLeague: { compRef: 'league:euroleague', teamSlug: 'el' },
+  BSL:        { compRef: 'league:bsl',        teamSlug: 'bsl' },
+};
+
+// api-basketball returns full club names (e.g. "Fenerbahce Beko Istanbul").
+// Our STATIC team rosters used short codes (FBB, EFES, etc) for slug
+// stability. This map resolves a fixture name back to the same slug the
+// static roster created. Unknown names fall through to a slugified
+// fallback in the same league's namespace — works but won't match a
+// pre-registered TrackedEntity, so the team won't be selectable in
+// onboarding until the static roster is extended.
+const BASKETBALL_TEAM_TO_SLUG = {
+  // EuroLeague
+  'Fenerbahce Beko Istanbul':  { league: 'EuroLeague', slug: 'fbb',   display: 'Fenerbahçe Beko' },
+  'Anadolu Efes Istanbul':     { league: 'EuroLeague', slug: 'efes',  display: 'Anadolu Efes' },
+  'Real Madrid':               { league: 'EuroLeague', slug: 'rmb',   display: 'Real Madrid' },
+  'FC Barcelona':              { league: 'EuroLeague', slug: 'bar_b', display: 'FC Barcelona' },
+  'Olympiacos Piraeus':        { league: 'EuroLeague', slug: 'oly',   display: 'Olympiacos' },
+  'Panathinaikos AKTOR Athens':{ league: 'EuroLeague', slug: 'pao',   display: 'Panathinaikos AKTOR' },
+  'Maccabi Playtika Tel Aviv': { league: 'EuroLeague', slug: 'mac',   display: 'Maccabi Tel Aviv' },
+  'Zalgiris Kaunas':           { league: 'EuroLeague', slug: 'zal',   display: 'Žalgiris Kaunas' },
+  'Crvena Zvezda Meridianbet Belgrade': { league: 'EuroLeague', slug: 'czv', display: 'Crvena zvezda' },
+  'Partizan Mozzart Bet Belgrade': { league: 'EuroLeague', slug: 'par', display: 'Partizan' },
+  'EA7 Emporio Armani Milan':  { league: 'EuroLeague', slug: 'mil_b', display: 'Olimpia Milano' },
+  'Virtus Segafredo Bologna':  { league: 'EuroLeague', slug: 'virt',  display: 'Virtus Bologna' },
+  'LDLC ASVEL Villeurbanne':   { league: 'EuroLeague', slug: 'asv',   display: 'ASVEL' },
+  'AS Monaco':                 { league: 'EuroLeague', slug: 'mon_b', display: 'AS Monaco' },
+  'Paris Basketball':          { league: 'EuroLeague', slug: 'par_b', display: 'Paris Basketball' },
+  'FC Bayern Munich':          { league: 'EuroLeague', slug: 'bay_b', display: 'Bayern München' },
+  'ALBA Berlin':               { league: 'EuroLeague', slug: 'alba',  display: 'ALBA Berlin' },
+  'Baskonia Vitoria-Gasteiz':  { league: 'EuroLeague', slug: 'bas',   display: 'Baskonia' },
+  // BSL
+  'Galatasaray':               { league: 'BSL', slug: 'bsl_gs',     display: 'Galatasaray MCT Technic' },
+  'Besiktas':                  { league: 'BSL', slug: 'bsl_bjk',    display: 'Beşiktaş Fibabanka' },
+  'TOFAS Bursa':               { league: 'BSL', slug: 'bsl_tofas',  display: 'TOFAŞ' },
+  'Bahcesehir Koleji':         { league: 'BSL', slug: 'bsl_bah',    display: 'Bahçeşehir Koleji' },
+  'Turk Telekom Ankara':       { league: 'BSL', slug: 'bsl_ttel',   display: 'Türk Telekom' },
+  'Pinar Karsiyaka':           { league: 'BSL', slug: 'bsl_ksk',    display: 'Pınar Karşıyaka' },
+};
+
+function resolveBasketballTeamRef(rawName, fallbackLeague) {
+  const known = BASKETBALL_TEAM_TO_SLUG[rawName];
+  if (known) {
+    const ns = BASKETBALL_LEAGUE_REFS[known.league];
+    return { ref: `team:${ns.teamSlug}:${known.slug}`, display: known.display };
+  }
+  const ns = BASKETBALL_LEAGUE_REFS[fallbackLeague] || BASKETBALL_LEAGUE_REFS.NBA;
+  const slug = rawName
+    .toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return { ref: `team:${ns.teamSlug}:${slug}`, display: rawName };
+}
+
+/**
+ * Fetch upcoming basketball games (NBA / EuroLeague / BSL) from our
+ * backend. Returns events normalised for the Base44 Event schema with
+ * competition + home/away entity refs that resolve against the static
+ * basketball rosters seeded in buildStaticTeamSeeds().
+ */
+export async function fetchUpcomingBasketball() {
+  const url = `${FOOTBALL_API_BASE}/sport-events?sport=basketball&upcoming=true&limit=300`;
+  const res = await fetch(url);
+  if (!res.ok) {
+    throw new Error(`basketball API ${res.status}: ${await res.text().catch(() => '')}`);
+  }
+  const games = await res.json();
+  return games.map((g) => {
+    const leagueCode = g.league;
+    const compRef = BASKETBALL_LEAGUE_REFS[leagueCode]?.compRef
+      || `league:${leagueCode.toLowerCase()}`;
+    const compName = BASKETBALL_LEAGUE_DISPLAY[leagueCode] || leagueCode;
+    const home = resolveBasketballTeamRef(g.home_team, leagueCode);
+    const away = resolveBasketballTeamRef(g.away_team || '', leagueCode);
+    return {
+      title: `${home.display} – ${away.display}`,
+      competition_name: compName,
+      start_time: new Date(g.kickoff).toISOString(),
+      broadcaster: g.broadcaster || '',
+      venue: g.venue || '',
+      is_live: g.status === 'in_play',
+      _category_slug: 'nba',
+      _source_id: g.external_ref,
+      _competition_ref: compRef,
+      _competition_name: compName,
+      _home_entity_ref: home.ref,
+      _home_entity_name: home.display,
+      _away_entity_ref: away.ref,
+      _away_entity_name: away.display,
+    };
+  });
+}
+
 // Hard-coded 14-day window. Was previously a destructured default param
 // (`{ daysAhead = 14 } = {}`) but Base44's bundle cache pinned the old
 // value of 2 and the new value never propagated, so the seed kept

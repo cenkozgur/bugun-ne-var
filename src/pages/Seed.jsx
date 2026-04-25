@@ -4,6 +4,7 @@ import { Loader2, CheckCircle2, AlertCircle, RefreshCw } from 'lucide-react';
 import {
   fetchUpcomingFootballMatches,
   fetchUpcomingF1Sessions,
+  fetchUpcomingBasketball,
   buildTvEvents,
   buildStaticTeamSeeds,
   buildMotoGpEvents,
@@ -76,8 +77,9 @@ export default function Seed() {
       const today = new Date();
       const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
-      const [football, f1, motogp, wsbk, tournaments, tv] = await Promise.allSettled([
+      const [football, basketball, f1, motogp, wsbk, tournaments, tv] = await Promise.allSettled([
         fetchUpcomingFootballMatches(),
+        fetchUpcomingBasketball(),
         fetchUpcomingF1Sessions(),
         Promise.resolve(buildMotoGpEvents()),
         Promise.resolve(buildWsbkEvents()),
@@ -98,6 +100,12 @@ export default function Seed() {
         collected.push(...football.value);
       } else {
         append(`  ! futbol kaynağı: ${football.reason?.message || football.reason}`);
+      }
+      if (basketball.status === 'fulfilled') {
+        append(`  🏀 ${basketball.value.length} basketbol`);
+        collected.push(...basketball.value);
+      } else {
+        append(`  ! basketbol kaynağı: ${basketball.reason?.message || basketball.reason}`);
       }
       if (f1.status === 'fulfilled') {
         append(`  🏎 ${f1.value.length} F1 oturumu`);
