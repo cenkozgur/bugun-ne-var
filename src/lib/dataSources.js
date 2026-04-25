@@ -96,10 +96,21 @@ export async function fetchUpcomingF1Sessions({ daysAhead = 14 } = {}) {
   // _source_id so dedupe keys don't depend on Turkish chars. label is the
   // human title in Turkish.
   const addSession = (sessionKey, label, dateStr, timeStr) => {
-    if (!dateStr || !timeStr) return;
+    if (!dateStr || !timeStr) {
+      console.log('[F1 DEBUG] SKIP', sessionKey, '(missing date/time)', dateStr, timeStr);
+      return;
+    }
     const iso = `${dateStr}T${timeStr}`;
     const t = new Date(iso).getTime();
-    if (!Number.isFinite(t) || t > cutoff) return;
+    if (!Number.isFinite(t)) {
+      console.log('[F1 DEBUG] SKIP', sessionKey, '(unparseable)', iso);
+      return;
+    }
+    if (t > cutoff) {
+      console.log('[F1 DEBUG] SKIP', sessionKey, '(after cutoff)', new Date(t).toISOString());
+      return;
+    }
+    console.log('[F1 DEBUG] ADD', sessionKey, new Date(t).toISOString());
     sessions.push({
       title: `${grandPrix} — ${label}`,
       competition_name: compName,
@@ -112,6 +123,11 @@ export async function fetchUpcomingF1Sessions({ daysAhead = 14 } = {}) {
     });
   };
 
+  // Debug — temporary, will remove once we figure out why this returns 2 in
+  // production but 5 when called via Node.
+  console.log('[F1 DEBUG] race keys:', Object.keys(race));
+  console.log('[F1 DEBUG] cutoff:', new Date(cutoff).toISOString(), 'now:', new Date().toISOString());
+
   if (race.FirstPractice) addSession('FP1', 'Antrenman 1', race.FirstPractice.date, race.FirstPractice.time);
   // SecondPractice is replaced by SprintQualifying on sprint weekends.
   if (race.SecondPractice) addSession('FP2', 'Antrenman 2', race.SecondPractice.date, race.SecondPractice.time);
@@ -120,6 +136,8 @@ export async function fetchUpcomingF1Sessions({ daysAhead = 14 } = {}) {
   if (race.Sprint) addSession('Sprint', 'Sprint', race.Sprint.date, race.Sprint.time);
   if (race.Qualifying) addSession('Quali', 'Sıralama', race.Qualifying.date, race.Qualifying.time);
   addSession('Race', 'Yarış', race.date, race.time);
+
+  console.log('[F1 DEBUG] returning', sessions.length, 'sessions:', sessions.map(s => s._source_id));
 
   return sessions;
 }
