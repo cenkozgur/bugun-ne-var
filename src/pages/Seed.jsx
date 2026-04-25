@@ -136,7 +136,7 @@ export default function Seed() {
   return (
     <div className="min-h-screen bg-background p-6 flex flex-col items-center">
       <div className="w-full max-w-md space-y-4 mt-8">
-        <h1 className="text-title-lg font-bold text-foreground">Seed Runner</h1>
+        <h1 className="text-title-lg font-bold text-foreground">Veri Senkronu — v2 🚦</h1>
         <p className="text-body text-muted-foreground">
           Gerçek veriyi çeker: futbol fikstürlerini football-predictor backend'inden,
           F1 oturumlarını Jolpica API'sinden, TV etkinliklerini elle hazırlanmış listeden.
