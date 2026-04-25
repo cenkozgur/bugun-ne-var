@@ -92,7 +92,10 @@ export async function fetchUpcomingF1Sessions({ daysAhead = 14 } = {}) {
   const broadcaster = 'S Sport / S Sport 2';
 
   const sessions = [];
-  const addSession = (label, dateStr, timeStr) => {
+  // sessionKey is an ASCII identifier (Antrenman1, SprintQuali, Race) used in
+  // _source_id so dedupe keys don't depend on Turkish chars. label is the
+  // human title in Turkish.
+  const addSession = (sessionKey, label, dateStr, timeStr) => {
     if (!dateStr || !timeStr) return;
     const iso = `${dateStr}T${timeStr}`;
     const t = new Date(iso).getTime();
@@ -105,19 +108,18 @@ export async function fetchUpcomingF1Sessions({ daysAhead = 14 } = {}) {
       venue,
       is_live: false,
       _category_slug: 'f1',
-      _source_id: `f1:${race.season}:${race.round}:${label}`,
+      _source_id: `f1:${race.season}:${race.round}:${sessionKey}`,
     });
   };
 
-  if (race.FirstPractice) addSession('Antrenman 1', race.FirstPractice.date, race.FirstPractice.time);
+  if (race.FirstPractice) addSession('FP1', 'Antrenman 1', race.FirstPractice.date, race.FirstPractice.time);
   // SecondPractice is replaced by SprintQualifying on sprint weekends.
-  if (race.SecondPractice) addSession('Antrenman 2', race.SecondPractice.date, race.SecondPractice.time);
-  if (race.SprintQualifying) addSession('Sprint Sıralama', race.SprintQualifying.date, race.SprintQualifying.time);
-  if (race.ThirdPractice) addSession('Antrenman 3', race.ThirdPractice.date, race.ThirdPractice.time);
-  if (race.Sprint) addSession('Sprint', race.Sprint.date, race.Sprint.time);
-  if (race.Qualifying) addSession('Sıralama', race.Qualifying.date, race.Qualifying.time);
-  // Main race
-  addSession('Yarış', race.date, race.time);
+  if (race.SecondPractice) addSession('FP2', 'Antrenman 2', race.SecondPractice.date, race.SecondPractice.time);
+  if (race.SprintQualifying) addSession('SprintQuali', 'Sprint Sıralama', race.SprintQualifying.date, race.SprintQualifying.time);
+  if (race.ThirdPractice) addSession('FP3', 'Antrenman 3', race.ThirdPractice.date, race.ThirdPractice.time);
+  if (race.Sprint) addSession('Sprint', 'Sprint', race.Sprint.date, race.Sprint.time);
+  if (race.Qualifying) addSession('Quali', 'Sıralama', race.Qualifying.date, race.Qualifying.time);
+  addSession('Race', 'Yarış', race.date, race.time);
 
   return sessions;
 }
