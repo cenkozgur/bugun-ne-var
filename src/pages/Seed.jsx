@@ -9,6 +9,7 @@ import {
   buildMotoGpEvents,
   buildWsbkEvents,
   buildStaticTournamentEvents,
+  STATIC_COMPETITIONS,
 } from '@/lib/dataSources';
 
 /**
@@ -210,6 +211,15 @@ export default function Seed() {
 
       const wantComps = new Map(); // ref → { name, category_slug }
       const wantEnts = new Map();  // ref → { name, category_slug, type, competition_ref }
+
+      // Seed standalone competitions first (NBA, EuroLeague, BSL, etc.)
+      // so their display name is set even when no fixtures exist yet.
+      // The fixture loop below won't override these because we check
+      // existence with `has()`.
+      for (const [ref, name, slug] of STATIC_COMPETITIONS) {
+        wantComps.set(ref, { name, category_slug: slug });
+      }
+
       for (const seed of collected) {
         if (seed._competition_ref && !wantComps.has(seed._competition_ref)) {
           wantComps.set(seed._competition_ref, {

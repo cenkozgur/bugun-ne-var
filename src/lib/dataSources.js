@@ -307,9 +307,15 @@ const STATIC_LEAGUE_ROSTERS = {
   ],
 };
 
-// NBA — all 30 franchises grouped by conference.
-// Onboarding shows them under "NBA" competition. Fixtures will come from
-// BALLDONTLIE in a follow-up commit when an API key is provisioned.
+// Basketball — three leagues sharing the 'nba' category slug for the
+// time being (Base44 Category row was originally created as "NBA"; the
+// display name should be renamed to "Basketbol" via the dashboard now
+// that we span EuroLeague + BSL too). Slug stays so existing user
+// subscriptions don't break.
+//
+// Each league's roster: [displayName, shortCode]. shortCode goes into
+// the team_ref slug, so it must be stable across seasons.
+
 const NBA_TEAMS = [
   // Eastern
   ['Boston Celtics', 'BOS'], ['Brooklyn Nets', 'BKN'],
@@ -329,6 +335,48 @@ const NBA_TEAMS = [
   ['Dallas Mavericks', 'DAL'], ['Houston Rockets', 'HOU'],
   ['Memphis Grizzlies', 'MEM'], ['New Orleans Pelicans', 'NOP'],
   ['San Antonio Spurs', 'SAS'],
+];
+
+// EuroLeague 2025/26 — 18 clubs.
+const EUROLEAGUE_TEAMS = [
+  ['Anadolu Efes',                'EFES'],
+  ['Fenerbahçe Beko',             'FBB'],
+  ['Real Madrid',                 'RMB'],
+  ['FC Barcelona',                'BAR_B'],
+  ['Olympiacos',                  'OLY'],
+  ['Panathinaikos AKTOR',         'PAO'],
+  ['Maccabi Tel Aviv',            'MAC'],
+  ['Žalgiris Kaunas',             'ZAL'],
+  ['Crvena zvezda',               'CZV'],
+  ['Partizan',                    'PAR'],
+  ['Olimpia Milano',              'MIL_B'],
+  ['Virtus Bologna',              'VIRT'],
+  ['ASVEL',                       'ASV'],
+  ['AS Monaco',                   'MON_B'],
+  ['Paris Basketball',            'PAR_B'],
+  ['Bayern München',              'BAY_B'],
+  ['ALBA Berlin',                 'ALBA'],
+  ['Baskonia',                    'BAS'],
+];
+
+// Türkiye Basketbol Süper Ligi (BSL) 2025/26 — 16 clubs.
+const BSL_TEAMS = [
+  ['Anadolu Efes',                'BSL_EFES'],
+  ['Fenerbahçe Beko',             'BSL_FBB'],
+  ['Galatasaray MCT Technic',     'BSL_GS'],
+  ['Beşiktaş Fibabanka',          'BSL_BJK'],
+  ['TOFAŞ',                       'BSL_TOFAS'],
+  ['Bahçeşehir Koleji',           'BSL_BAH'],
+  ['Türk Telekom',                'BSL_TTEL'],
+  ['Pınar Karşıyaka',             'BSL_KSK'],
+  ['Aliağa Petkimspor',           'BSL_PETKIM'],
+  ['Manisa Büyükşehir Belediye',  'BSL_MAN'],
+  ['Bandırma B.İ.K.',             'BSL_BAND'],
+  ['Yukatel Merkezefendi',        'BSL_MERK'],
+  ['Mersin Spor',                 'BSL_MER'],
+  ['Onvo Büyükçekmece Basketbol', 'BSL_BCEK'],
+  ['Samsunspor',                  'BSL_SAM'],
+  ['Esenler Erokspor',            'BSL_ESN'],
 ];
 
 // Volleyball — top Turkish clubs (Sultanlar Ligi + Efeler Ligi)
@@ -409,14 +457,27 @@ export function buildStaticTeamSeeds() {
     }
   }
 
-  // NBA franchises
-  for (const [name, code] of NBA_TEAMS) {
-    out.push({
-      _category_slug: 'nba',
-      _entity_name: name,
-      _entity_ref: `team:nba:${code.toLowerCase()}`,
-      _competition_ref: 'league:nba',
-    });
+  // Basketball leagues — share the 'nba' category slug
+  // (see comment on the team arrays for why the slug is named 'nba'
+  // historically). Each league gets its own competition_ref so a user
+  // following EuroLeague doesn't see NBA preseason noise and vice versa.
+  const BASKETBALL_LEAGUES = [
+    { compRef: 'league:nba',       teams: NBA_TEAMS,        teamSlug: 'nba' },
+    { compRef: 'league:euroleague',teams: EUROLEAGUE_TEAMS, teamSlug: 'el' },
+    { compRef: 'league:bsl',       teams: BSL_TEAMS,        teamSlug: 'bsl' },
+  ];
+  for (const lg of BASKETBALL_LEAGUES) {
+    for (const [name, code] of lg.teams) {
+      out.push({
+        _category_slug: 'nba', // intentional: see team-array comment
+        // Onboarding step 3 already groups teams under their league
+        // header, so we don't suffix the league here — would be redundant
+        // ("Anadolu Efes" under "EuroLeague" header is enough).
+        _entity_name: name,
+        _entity_ref: `team:${lg.teamSlug}:${code.toLowerCase()}`,
+        _competition_ref: lg.compRef,
+      });
+    }
   }
 
   // Volleyball clubs
@@ -443,10 +504,25 @@ export function buildStaticTeamSeeds() {
   return out;
 }
 
-// Standalone competition + tournament builder. NBA & Tennis tournaments
-// don't have per-match data yet (no API key), but listing the umbrella
-// competition + each tournament lets the user pick them in onboarding
-// step 2 and shows the schedule window as an event in the meantime.
+// Standalone competition definitions for sources that have no live
+// fixtures yet. Without these, /seed creates Competition rows with
+// blank `name` (since name normally comes from the first fixture's
+// _competition_name). Onboarding step 2 then shows blank labels.
+//
+// Each row: [external_ref, displayName, categorySlug]. /seed seeds
+// these as Competition rows with no events attached; the events come
+// later when an API key + fetcher is wired.
+export const STATIC_COMPETITIONS = [
+  ['league:nba',         '🇺🇸 NBA',                   'nba'],
+  ['league:euroleague',  '🇪🇺 EuroLeague',            'nba'],
+  ['league:bsl',         '🇹🇷 Basketbol Süper Ligi',  'nba'],
+  ['league:tr_volleyball','🇹🇷 Voleybol (Sultanlar + Efeler)', 'voleybol'],
+  ['tour:atp_wta',       '🎾 ATP / WTA Tour',         'tenis'],
+];
+
+// Standalone tournament + special-event builder. Tennis Slams etc.
+// emit a single "tournament starts" event so users can subscribe to
+// the umbrella and get reminded when it kicks off.
 export function buildStaticTournamentEvents() {
   const events = [];
   const now = Date.now();
