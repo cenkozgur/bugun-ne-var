@@ -149,7 +149,7 @@ export default function Seed() {
       }
 
       const wantComps = new Map(); // ref → { name, category_slug }
-      const wantEnts = new Map();  // ref → { name, category_slug, type }
+      const wantEnts = new Map();  // ref → { name, category_slug, type, competition_ref }
       for (const seed of collected) {
         if (seed._competition_ref && !wantComps.has(seed._competition_ref)) {
           wantComps.set(seed._competition_ref, {
@@ -161,7 +161,12 @@ export default function Seed() {
           const ref = seed[`_${side}_entity_ref`];
           const name = seed[`_${side}_entity_name`];
           if (ref && name && !wantEnts.has(ref)) {
-            wantEnts.set(ref, { name, category_slug: seed._category_slug, type: 'team' });
+            wantEnts.set(ref, {
+              name,
+              category_slug: seed._category_slug,
+              type: 'team',
+              competition_ref: seed._competition_ref || '',
+            });
           }
         }
       }
@@ -189,32 +194,48 @@ export default function Seed() {
       append(`  ${compCreated} yeni lig + ${compByRef.size - compCreated} mevcut. ✓`);
 
       let entCreated = 0;
+      let entUpdated = 0;
       let entIdx = 0;
       for (const [ref, spec] of wantEnts) {
-        if (entByRef.has(ref)) continue;
         const cat = bySlug[spec.category_slug];
         if (!cat) continue;
+        const existing = entByRef.get(ref);
         try {
-          const created = await withRetry(() =>
-            base44.entities.TrackedEntity.create({
-              name: spec.name,
-              category_id: cat.id,
-              type: spec.type,
-              external_ref: ref,
-            })
-          );
-          entByRef.set(ref, created);
-          entCreated += 1;
+          if (!existing) {
+            const created = await withRetry(() =>
+              base44.entities.TrackedEntity.create({
+                name: spec.name,
+                category_id: cat.id,
+                type: spec.type,
+                external_ref: ref,
+                competition_ref: spec.competition_ref,
+              })
+            );
+            entByRef.set(ref, created);
+            entCreated += 1;
+          } else if (spec.competition_ref && existing.competition_ref !== spec.competition_ref) {
+            // Backfill: existing rows from earlier seed runs predate the
+            // competition_ref column. Patch them so onboarding's
+            // per-league filter actually narrows.
+            await withRetry(() =>
+              base44.entities.TrackedEntity.update(existing.id, {
+                competition_ref: spec.competition_ref,
+              })
+            );
+            entUpdated += 1;
+          } else {
+            continue; // up to date, no write needed
+          }
           entIdx += 1;
-          // Short pause after each + a longer breath every 20 to keep
-          // Base44's per-second cap happy on a 100-team initial seed.
           await sleep(80);
           if (entIdx % 20 === 0) await sleep(800);
         } catch (err) {
           append(`  ! Entity: ${spec.name} (${err?.message || err})`);
         }
       }
-      append(`  ${entCreated} yeni takım + ${entByRef.size - entCreated} mevcut. ✓`);
+      append(
+        `  ${entCreated} yeni + ${entUpdated} güncellendi + ${entByRef.size - entCreated} mevcut takım. ✓`
+      );
 
       append(`→ ${collected.length} Event yazılıyor…`);
       let okCount = 0;

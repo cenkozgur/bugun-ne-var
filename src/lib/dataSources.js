@@ -12,17 +12,19 @@
 const FOOTBALL_API_BASE = 'https://api.cenkozgur.com';
 const JOLPICA_BASE = 'https://api.jolpi.ca/ergast/f1';
 
-// League codes used by football-predictor → display labels we want on cards.
+// League codes used by football-predictor → display labels we want on
+// cards. Country flag emoji prefix so the user can spot leagues at a
+// glance (especially in onboarding step 2 with 8+ ligs stacked).
 const LEAGUE_LABELS = {
-  T1: 'Süper Lig',
-  E0: 'Premier League',
-  E1: 'Championship',
-  SP1: 'La Liga',
-  I1: 'Serie A',
-  D1: 'Bundesliga',
-  F1: 'Ligue 1', // NOTE: clashes with our F1 (Formula 1) category slug — leagues stay in their own namespace
-  N1: 'Eredivisie',
-  P1: 'Primeira Liga',
+  T1:  '🇹🇷 Süper Lig',
+  E0:  '🇬🇧 Premier League',
+  E1:  '🇬🇧 Championship',
+  SP1: '🇪🇸 La Liga',
+  I1:  '🇮🇹 Serie A',
+  D1:  '🇩🇪 Bundesliga',
+  F1:  '🇫🇷 Ligue 1', // NOTE: clashes with our F1 (Formula 1) category slug — leagues stay in their own namespace
+  N1:  '🇳🇱 Eredivisie',
+  P1:  '🇵🇹 Primeira Liga',
 };
 
 // Best-guess Türkiye broadcaster per league. Real EPG data is messy —

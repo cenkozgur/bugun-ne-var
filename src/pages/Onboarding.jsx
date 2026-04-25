@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import StepDots from '@/components/onboarding/StepDots';
 import CategoryTile from '@/components/onboarding/CategoryTile';
-import { ArrowRight, ArrowLeft, Loader2, Check } from 'lucide-react';
+import { ArrowRight, ArrowLeft, Loader2, Check, Search } from 'lucide-react';
 
 /**
  * 3-step onboarding:
@@ -13,6 +13,8 @@ import { ArrowRight, ArrowLeft, Loader2, Check } from 'lucide-react';
  *   2. (Optional) For each picked category that has competitions in the
  *      DB, narrow to specific leagues. Default: all leagues.
  *   3. (Optional) For each picked competition, narrow to specific teams.
+ *      Teams are filtered to ONLY the leagues picked in step 2 (via
+ *      TrackedEntity.competition_ref) and grouped under league headers.
  *      Default: all teams.
  *
  * Subscriptions are written at the most specific selected level — if the
@@ -25,12 +27,10 @@ export default function Onboarding() {
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
   const [busy, setBusy] = useState(false);
+  const [search, setSearch] = useState('');
 
-  // Step 1
   const [selectedCategoryIds, setSelectedCategoryIds] = useState(new Set());
-  // Step 2 — set of competition ids (per category, but flat is fine for storage)
   const [selectedCompetitionIds, setSelectedCompetitionIds] = useState(new Set());
-  // Step 3 — set of TrackedEntity ids
   const [selectedEntityIds, setSelectedEntityIds] = useState(new Set());
 
   const { data: categories = [], isLoading: catsLoading } = useQuery({
@@ -50,20 +50,87 @@ export default function Onboarding() {
     enabled: step >= 3,
   });
 
-  // Competitions visible in step 2 — only those whose category is selected.
-  const visibleCompetitions = useMemo(() => {
-    return competitions.filter((c) => selectedCategoryIds.has(c.category_id));
-  }, [competitions, selectedCategoryIds]);
+  // Reset search whenever the step changes — stale query strings
+  // shouldn't leak across steps.
+  React.useEffect(() => {
+    setSearch('');
+  }, [step]);
 
+  // Step 2: only competitions whose category was picked.
+  const visibleCompetitions = useMemo(() => {
+    const list = competitions.filter((c) => selectedCategoryIds.has(c.category_id));
+    if (!search.trim()) return list;
+    const q = search.trim().toLowerCase();
+    return list.filter((c) => (c.name || '').toLowerCase().includes(q));
+  }, [competitions, selectedCategoryIds, search]);
+
+  // Map competition_ref → competition for fast grouping in step 3.
+  const compByRef = useMemo(() => {
+    const m = new Map();
+    competitions.forEach((c) => {
+      if (c.external_ref) m.set(c.external_ref, c);
+    });
+    return m;
+  }, [competitions]);
+
+  // Step 3: teams gated by competition selection.
+  // - If user picked specific leagues in step 2 → only teams with
+  //   competition_ref in that set.
+  // - If user skipped step 2 → teams from ALL competitions in the
+  //   selected categories.
+  // Then narrowed by search.
   const visibleEntities = useMemo(() => {
-    // Teams are tagged by category, not competition (we don't store that
-    // edge yet). So show all team-type entities whose category is in the
-    // selected category set. Then group by competition externally if we
-    // want.
-    return entities.filter(
-      (e) => e.type === 'team' && selectedCategoryIds.has(e.category_id)
-    );
-  }, [entities, selectedCategoryIds]);
+    const teams = entities.filter((e) => e.type === 'team');
+
+    let pool;
+    if (selectedCompetitionIds.size > 0) {
+      const allowedCompRefs = new Set();
+      for (const id of selectedCompetitionIds) {
+        const comp = competitions.find((c) => c.id === id);
+        if (comp?.external_ref) allowedCompRefs.add(comp.external_ref);
+      }
+      pool = teams.filter((t) => t.competition_ref && allowedCompRefs.has(t.competition_ref));
+    } else {
+      // No specific league picked — show every team in the user's
+      // selected categories (legacy fallback for users who skipped
+      // step 2 entirely).
+      pool = teams.filter((t) => selectedCategoryIds.has(t.category_id));
+    }
+
+    if (!search.trim()) return pool;
+    const q = search.trim().toLowerCase();
+    return pool.filter((e) => (e.name || '').toLowerCase().includes(q));
+  }, [entities, competitions, selectedCompetitionIds, selectedCategoryIds, search]);
+
+  // Group step-3 entities by their parent competition for visual clarity
+  // (under each league header: that league's teams).
+  const groupedEntities = useMemo(() => {
+    const groups = new Map(); // compRef → [team, ...]
+    const orphan = [];
+    for (const t of visibleEntities) {
+      if (t.competition_ref && compByRef.has(t.competition_ref)) {
+        const arr = groups.get(t.competition_ref) || [];
+        arr.push(t);
+        groups.set(t.competition_ref, arr);
+      } else {
+        orphan.push(t);
+      }
+    }
+    // Stable order: by competition name
+    const sortedGroups = Array.from(groups.entries())
+      .map(([ref, teams]) => ({
+        comp: compByRef.get(ref),
+        teams: teams.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'tr')),
+      }))
+      .sort((a, b) => (a.comp?.name || '').localeCompare(b.comp?.name || '', 'tr'));
+    if (orphan.length) {
+      sortedGroups.push({
+        comp: { name: 'Diğer' },
+        teams: orphan.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'tr')),
+      });
+    }
+    return sortedGroups;
+  }, [visibleEntities, compByRef]);
 
   const toggle = (set, setter) => (id) => {
     setter(() => {
@@ -73,7 +140,6 @@ export default function Onboarding() {
       return next;
     });
   };
-
   const toggleCategory = toggle(selectedCategoryIds, setSelectedCategoryIds);
   const toggleCompetition = toggle(selectedCompetitionIds, setSelectedCompetitionIds);
   const toggleEntity = toggle(selectedEntityIds, setSelectedEntityIds);
@@ -81,8 +147,6 @@ export default function Onboarding() {
   const finalize = async () => {
     setBusy(true);
     try {
-      // Sequential delete + create so Base44's per-second cap doesn't
-      // start dropping requests halfway through (observed during /seed).
       const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
       const existing = await base44.entities.UserSubscription.list();
@@ -94,11 +158,6 @@ export default function Onboarding() {
       }
 
       const subs = [];
-      // For each selected category, write the most specific level the
-      // user expressed:
-      //   - any entity selected for this category → entity subs only
-      //   - any competition selected for this category → competition subs only
-      //   - else → blanket category sub
       for (const catId of selectedCategoryIds) {
         const entitiesInCat = visibleEntities
           .filter((e) => e.category_id === catId && selectedEntityIds.has(e.id));
@@ -108,7 +167,7 @@ export default function Onboarding() {
           }
           continue;
         }
-        const compsInCat = visibleCompetitions
+        const compsInCat = competitions
           .filter((c) => c.category_id === catId && selectedCompetitionIds.has(c.id));
         if (compsInCat.length > 0) {
           for (const c of compsInCat) {
@@ -123,7 +182,7 @@ export default function Onboarding() {
         try {
           await base44.entities.UserSubscription.create(s);
           await sleep(80);
-        } catch { /* ignore — individual sub failure shouldn't block onboarding completion */ }
+        } catch { /* ignore — single failure shouldn't block onboarding */ }
       }
       navigate('/');
     } finally {
@@ -139,26 +198,18 @@ export default function Onboarding() {
     );
   }
 
-  // Decide CTA state
   const canAdvance =
-    (step === 1 && selectedCategoryIds.size > 0) ||
-    step === 2 ||
-    step === 3;
+    (step === 1 && selectedCategoryIds.size > 0) || step === 2 || step === 3;
 
-  // Skip step 2 entirely if no competitions exist for any selected category.
-  const step2Empty = step === 2 && !compsLoading && visibleCompetitions.length === 0;
-  if (step2Empty) {
-    // Auto-advance — there's nothing to narrow.
-    setTimeout(() => setStep(3), 0);
-  }
-  const step3Empty = step === 3 && !entsLoading && visibleEntities.length === 0;
-  if (step3Empty) {
-    setTimeout(() => finalize(), 0);
-  }
+  // Auto-skip step 2 / 3 if the data set is empty for the current selection.
+  const step2Empty = step === 2 && !compsLoading && visibleCompetitions.length === 0 && !search;
+  if (step2Empty) setTimeout(() => setStep(3), 0);
+  const step3Empty = step === 3 && !entsLoading && visibleEntities.length === 0 && !search;
+  if (step3Empty) setTimeout(() => finalize(), 0);
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      <div className="px-6 pt-14 pb-6">
+      <div className="px-6 pt-14 pb-4">
         <StepDots total={3} current={step} />
 
         {step === 1 && (
@@ -191,6 +242,19 @@ export default function Onboarding() {
             </p>
           </>
         )}
+
+        {step >= 2 && (
+          <div className="relative mt-6">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={step === 2 ? 'lig ara…' : 'takım ara…'}
+              className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-secondary text-foreground text-body placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+            />
+          </div>
+        )}
       </div>
 
       <div className="flex-1 px-6 pb-28 overflow-y-auto">
@@ -211,6 +275,10 @@ export default function Onboarding() {
           <div className="flex justify-center py-12">
             <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
           </div>
+        ) : visibleCompetitions.length === 0 ? (
+          <p className="text-body text-muted-foreground text-center py-12">
+            {search ? 'eşleşen lig yok' : 'kayıtlı lig yok'}
+          </p>
         ) : (
           <div className="space-y-2">
             {visibleCompetitions.map((comp) => {
@@ -233,26 +301,36 @@ export default function Onboarding() {
           <div className="flex justify-center py-12">
             <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
           </div>
+        ) : visibleEntities.length === 0 ? (
+          <p className="text-body text-muted-foreground text-center py-12">
+            {search ? 'eşleşen takım yok' : 'kayıtlı takım yok'}
+          </p>
         ) : (
-          <div className="space-y-2">
-            {visibleEntities.map((ent) => {
-              const cat = categories.find((c) => c.id === ent.category_id);
-              const active = selectedEntityIds.has(ent.id);
-              return (
-                <SelectableRow
-                  key={ent.id}
-                  prefix={cat?.emoji}
-                  label={ent.name}
-                  active={active}
-                  onClick={() => toggleEntity(ent.id)}
-                />
-              );
-            })}
+          <div className="space-y-6">
+            {groupedEntities.map((group) => (
+              <div key={group.comp?.external_ref || group.comp?.name}>
+                <h3 className="text-micro uppercase text-muted-foreground tracking-wider mb-2">
+                  {group.comp?.name}
+                </h3>
+                <div className="space-y-2">
+                  {group.teams.map((ent) => {
+                    const active = selectedEntityIds.has(ent.id);
+                    return (
+                      <SelectableRow
+                        key={ent.id}
+                        label={ent.name}
+                        active={active}
+                        onClick={() => toggleEntity(ent.id)}
+                      />
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
           </div>
         ))}
       </div>
 
-      {/* Bottom action bar */}
       <div className="fixed bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-background via-background to-transparent flex gap-3">
         {step > 1 && (
           <button
