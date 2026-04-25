@@ -22,6 +22,10 @@
     "external_ref": {
       "type": "string",
       "description": "Stable upstream id used for /seed dedup (e.g. team:T1:fenerbahce, team:E0:liverpool)."
+    },
+    "competition_ref": {
+      "type": "string",
+      "description": "Stable upstream id of the parent competition (e.g. league:T1). Lets the onboarding flow filter teams by which league the user picked. Matches Competition.external_ref."
     }
   },
   "required": [
