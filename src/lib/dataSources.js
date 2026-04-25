@@ -74,8 +74,12 @@ export async function fetchUpcomingFootballMatches({ daysAhead = 2 } = {}) {
  * Fetch F1 sessions for the next race weekend from Jolpica.
  * Returns 1-5 events (FP1, FP2/Sprint Quali, Sprint, Quali, Race)
  * depending on whether this is a sprint weekend.
+ *
+ * No date cutoff — the next race is always relevant to display, even if
+ * it's 10 days out. The Home page's time-scope chips ("bu hafta", "tümü")
+ * decide visibility downstream.
  */
-export async function fetchUpcomingF1Sessions({ daysAhead = 14 } = {}) {
+export async function fetchUpcomingF1Sessions() {
   const url = `${JOLPICA_BASE}/2026/next.json`;
   const res = await fetch(url);
   if (!res.ok) {
@@ -85,32 +89,20 @@ export async function fetchUpcomingF1Sessions({ daysAhead = 14 } = {}) {
   const race = data?.MRData?.RaceTable?.Races?.[0];
   if (!race) return [];
 
-  const cutoff = Date.now() + daysAhead * 24 * 60 * 60 * 1000;
   const venue = race.Circuit?.circuitName || '';
   const grandPrix = race.raceName || 'Grand Prix';
   const compName = `Formula 1 2026 — ${grandPrix}`;
   const broadcaster = 'S Sport / S Sport 2';
 
   const sessions = [];
-  // sessionKey is an ASCII identifier (Antrenman1, SprintQuali, Race) used in
+  // sessionKey is an ASCII identifier (FP1, SprintQuali, Race) used in
   // _source_id so dedupe keys don't depend on Turkish chars. label is the
   // human title in Turkish.
   const addSession = (sessionKey, label, dateStr, timeStr) => {
-    if (!dateStr || !timeStr) {
-      console.log('[F1 DEBUG] SKIP', sessionKey, '(missing date/time)', dateStr, timeStr);
-      return;
-    }
+    if (!dateStr || !timeStr) return;
     const iso = `${dateStr}T${timeStr}`;
     const t = new Date(iso).getTime();
-    if (!Number.isFinite(t)) {
-      console.log('[F1 DEBUG] SKIP', sessionKey, '(unparseable)', iso);
-      return;
-    }
-    if (t > cutoff) {
-      console.log('[F1 DEBUG] SKIP', sessionKey, '(after cutoff)', new Date(t).toISOString());
-      return;
-    }
-    console.log('[F1 DEBUG] ADD', sessionKey, new Date(t).toISOString());
+    if (!Number.isFinite(t)) return;
     sessions.push({
       title: `${grandPrix} — ${label}`,
       competition_name: compName,
@@ -123,11 +115,6 @@ export async function fetchUpcomingF1Sessions({ daysAhead = 14 } = {}) {
     });
   };
 
-  // Debug — temporary, will remove once we figure out why this returns 2 in
-  // production but 5 when called via Node.
-  console.log('[F1 DEBUG] race keys:', Object.keys(race));
-  console.log('[F1 DEBUG] cutoff:', new Date(cutoff).toISOString(), 'now:', new Date().toISOString());
-
   if (race.FirstPractice) addSession('FP1', 'Antrenman 1', race.FirstPractice.date, race.FirstPractice.time);
   // SecondPractice is replaced by SprintQualifying on sprint weekends.
   if (race.SecondPractice) addSession('FP2', 'Antrenman 2', race.SecondPractice.date, race.SecondPractice.time);
@@ -136,8 +123,6 @@ export async function fetchUpcomingF1Sessions({ daysAhead = 14 } = {}) {
   if (race.Sprint) addSession('Sprint', 'Sprint', race.Sprint.date, race.Sprint.time);
   if (race.Qualifying) addSession('Quali', 'Sıralama', race.Qualifying.date, race.Qualifying.time);
   addSession('Race', 'Yarış', race.date, race.time);
-
-  console.log('[F1 DEBUG] returning', sessions.length, 'sessions:', sessions.map(s => s._source_id));
 
   return sessions;
 }
