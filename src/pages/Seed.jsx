@@ -5,6 +5,7 @@ import {
   fetchUpcomingFootballMatches,
   fetchUpcomingF1Sessions,
   buildTvEvents,
+  buildStaticTeamSeeds,
 } from '@/lib/dataSources';
 
 /**
@@ -136,15 +137,42 @@ export default function Seed() {
       // queries) while still carrying *_ref strings for fast filtering.
       append('→ Lig ve takım kayıtları hazırlanıyor…');
 
-      const existingComps = await base44.entities.Competition.list();
+      // Cleanup: legacy duplicates from earlier seed runs that predate
+      // external_ref. Anything in Competition / TrackedEntity without
+      // external_ref is residue — wipe so the dropdown isn't full of
+      // copies. We can only do this safely because every "real" row from
+      // the new seed code has external_ref by construction.
+      const allComps = await base44.entities.Competition.list();
+      const allEnts = await base44.entities.TrackedEntity.list();
+
+      const orphanComps = allComps.filter((c) => !c.external_ref);
+      const orphanEnts = allEnts.filter((e) => !e.external_ref);
+      let cleanedC = 0, cleanedE = 0;
+      for (const c of orphanComps) {
+        try {
+          await withRetry(() => base44.entities.Competition.delete(c.id));
+          cleanedC += 1;
+          await sleep(60);
+        } catch { /* ignore */ }
+      }
+      for (const e of orphanEnts) {
+        try {
+          await withRetry(() => base44.entities.TrackedEntity.delete(e.id));
+          cleanedE += 1;
+          await sleep(60);
+        } catch { /* ignore */ }
+      }
+      if (cleanedC || cleanedE) {
+        append(`  eski kayıtlar temizlendi: ${cleanedC} lig, ${cleanedE} takım. ✓`);
+      }
+
       const compByRef = new Map();
-      for (const c of existingComps) {
+      for (const c of allComps) {
         if (c.external_ref) compByRef.set(c.external_ref, c);
       }
 
-      const existingEnts = await base44.entities.TrackedEntity.list();
       const entByRef = new Map();
-      for (const e of existingEnts) {
+      for (const e of allEnts) {
         if (e.external_ref) entByRef.set(e.external_ref, e);
       }
 
@@ -171,27 +199,53 @@ export default function Seed() {
         }
       }
 
-      let compCreated = 0;
+      // Layer in static team rosters (e.g. all 18 Süper Lig clubs even
+      // when only 8 are scheduled this week). Doesn't override fixture-
+      // sourced entries because the for-loop above already filled them.
+      for (const seed of buildStaticTeamSeeds()) {
+        if (!wantEnts.has(seed._entity_ref)) {
+          wantEnts.set(seed._entity_ref, {
+            name: seed._entity_name,
+            category_slug: seed._category_slug,
+            type: 'team',
+            competition_ref: seed._competition_ref,
+          });
+        }
+      }
+
+      let compCreated = 0, compUpdated = 0;
       for (const [ref, spec] of wantComps) {
-        if (compByRef.has(ref)) continue;
         const cat = bySlug[spec.category_slug];
         if (!cat) continue;
+        const existing = compByRef.get(ref);
         try {
-          const created = await withRetry(() =>
-            base44.entities.Competition.create({
-              name: spec.name,
-              category_id: cat.id,
-              external_ref: ref,
-            })
-          );
-          compByRef.set(ref, created);
-          compCreated += 1;
+          if (!existing) {
+            const created = await withRetry(() =>
+              base44.entities.Competition.create({
+                name: spec.name,
+                category_id: cat.id,
+                external_ref: ref,
+              })
+            );
+            compByRef.set(ref, created);
+            compCreated += 1;
+          } else if (existing.name !== spec.name) {
+            // The label format may have evolved (e.g. flag emoji prefix
+            // added). Patch the existing row so the dropdown picks up
+            // the new label without forcing the user to re-onboard.
+            await withRetry(() =>
+              base44.entities.Competition.update(existing.id, { name: spec.name })
+            );
+            compUpdated += 1;
+          } else {
+            continue;
+          }
           await sleep(80);
         } catch (err) {
           append(`  ! Competition: ${spec.name} (${err?.message || err})`);
         }
       }
-      append(`  ${compCreated} yeni lig + ${compByRef.size - compCreated} mevcut. ✓`);
+      append(`  ${compCreated} yeni + ${compUpdated} güncellendi + ${compByRef.size - compCreated} mevcut lig. ✓`);
 
       let entCreated = 0;
       let entUpdated = 0;

@@ -155,6 +155,38 @@ export async function fetchUpcomingF1Sessions() {
   return sessions;
 }
 
+// Static team rosters per league. /seed pulls fixture data from
+// football-predictor which only includes teams currently scheduled, so a
+// freshly-promoted club or a quiet week leaves gaps. These rosters fill
+// the onboarding selection list so users see the full league regardless
+// of what's on the fixture today. Teams added here are just registered
+// in TrackedEntity — their event coverage still depends on the upstream
+// fixture pipeline.
+const STATIC_LEAGUE_ROSTERS = {
+  T1: [
+    'Galatasaray', 'Fenerbahce', 'Besiktas', 'Trabzonspor',
+    'Basaksehir', 'Adana Demirspor', 'Antalyaspor', 'Konyaspor',
+    'Kasimpasa', 'Alanyaspor', 'Sivasspor', 'Kayserispor',
+    'Rizespor', 'Samsunspor', 'Eyupspor', 'Goztepe',
+    'Gaziantep', 'Kocaelispor',
+  ],
+};
+
+export function buildStaticTeamSeeds() {
+  const out = [];
+  for (const [league, names] of Object.entries(STATIC_LEAGUE_ROSTERS)) {
+    for (const name of names) {
+      out.push({
+        _category_slug: 'futbol',
+        _entity_name: name,
+        _entity_ref: teamRef(league, name),
+        _competition_ref: competitionRef(league),
+      });
+    }
+  }
+  return out;
+}
+
 // Hand-curated TV events. There's no usable Turkish EPG API, so we keep
 // a small list that gets refreshed when the user opens /seed. Add more
 // here as new must-watch broadcasts are announced.
