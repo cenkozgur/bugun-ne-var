@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
-import { Settings, Loader2 } from 'lucide-react';
+import { Settings, Loader2, Compass } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { isToday, isTomorrow, isThisWeek, parseISO } from 'date-fns';
 import { getGreeting } from '@/lib/useTheme';
@@ -24,11 +24,29 @@ export default function Home() {
     queryFn: () => base44.entities.Category.list(),
   });
 
+  const { data: subscriptions = [], isLoading: subsLoading } = useQuery({
+    queryKey: ['subscriptions'],
+    queryFn: () => base44.entities.UserSubscription.list(),
+  });
+
   const categoryMap = useMemo(() => {
     const map = {};
     categories.forEach((c) => (map[c.id] = c));
     return map;
   }, [categories]);
+
+  // Build the set of category ids the user is subscribed to. For now we
+  // only honour category-level subs; competition/entity-level filtering
+  // comes later when those entities have data.
+  const subscribedCategoryIds = useMemo(() => {
+    const set = new Set();
+    for (const sub of subscriptions) {
+      if (sub.target_type === 'category' && sub.target_id) {
+        set.add(sub.target_id);
+      }
+    }
+    return set;
+  }, [subscriptions]);
 
   // Re-arm in-tab notification timers after a page reload.
   useEffect(() => {
@@ -37,8 +55,16 @@ export default function Home() {
     rehydrateReminders(byId);
   }, [events]);
 
+  // Filter events to only those whose category the user follows. If they
+  // have zero subs we fall through to the empty-state below — showing
+  // every Event regardless would defeat the whole point of the app.
+  const subscribedEvents = useMemo(() => {
+    if (subscribedCategoryIds.size === 0) return [];
+    return events.filter((e) => subscribedCategoryIds.has(e.category_id));
+  }, [events, subscribedCategoryIds]);
+
   const filtered = useMemo(() => {
-    return events
+    return subscribedEvents
       .filter((e) => {
         const d = parseISO(e.start_time);
         if (filter === 'today') return isToday(d) || e.is_live;
@@ -51,23 +77,69 @@ export default function Home() {
         if (!a.is_live && b.is_live) return 1;
         return new Date(a.start_time) - new Date(b.start_time);
       });
-  }, [events, filter]);
+  }, [subscribedEvents, filter]);
 
   const liveEvents = filtered.filter((e) => e.is_live);
   const upcomingToday = filtered.filter((e) => !e.is_live && isToday(parseISO(e.start_time)));
-  const tomorrowEvents = events
+  const tomorrowEvents = subscribedEvents
     .filter((e) => isTomorrow(parseISO(e.start_time)))
     .sort((a, b) => new Date(a.start_time) - new Date(b.start_time))
-    .slice(0, 2);
+    .slice(0, 3);
 
-  const todayCount = events.filter(
+  const todayCount = subscribedEvents.filter(
     (e) => isToday(parseISO(e.start_time)) || e.is_live
   ).length;
 
-  if (eventsLoading) {
+  if (eventsLoading || subsLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  // No subscriptions yet — push the user to pick something. We render
+  // greeting + tab bar so the layout doesn't feel broken, but the body
+  // is a single CTA.
+  if (subscribedCategoryIds.size === 0) {
+    return (
+      <div className="min-h-screen bg-background pb-24">
+        <div className="px-5 pt-14 pb-4 flex items-start justify-between">
+          <div>
+            <h1 className="text-display font-bold text-foreground">
+              {greeting.text} {greeting.emoji}
+            </h1>
+            <p className="text-body text-muted-foreground mt-1">
+              henüz hiçbir şey takip etmiyorsun
+            </p>
+          </div>
+          <Link
+            to="/ayarlar"
+            className="mt-1 p-2 rounded-xl bg-secondary text-muted-foreground press-scale"
+          >
+            <Settings className="w-5 h-5" />
+          </Link>
+        </div>
+
+        <div className="px-5 pt-12 flex flex-col items-center text-center">
+          <div className="w-16 h-16 rounded-full bg-secondary flex items-center justify-center mb-6">
+            <Compass className="w-7 h-7 text-muted-foreground" />
+          </div>
+          <h2 className="text-title font-semibold text-foreground mb-2">
+            ne takip etmek istersin?
+          </h2>
+          <p className="text-body text-muted-foreground mb-8 max-w-xs">
+            kategorileri seç, sadece ilgilendiklerini gör.
+          </p>
+          <Link
+            to="/onboarding"
+            className="px-6 py-3 rounded-full bg-foreground text-background text-body font-semibold press-scale"
+          >
+            kategorileri seç →
+          </Link>
+        </div>
+
+        <BottomTabBar />
       </div>
     );
   }
@@ -82,7 +154,9 @@ export default function Home() {
               {greeting.text} {greeting.emoji}
             </h1>
             <p className="text-body text-muted-foreground mt-1">
-              bugün {todayCount} etkinlik var
+              {todayCount > 0
+                ? `bugün ${todayCount} etkinlik var`
+                : 'bugün takip ettiğin bir şey yok'}
             </p>
           </div>
           <Link
@@ -156,7 +230,7 @@ export default function Home() {
           </section>
         )}
 
-        {/* Other filters */}
+        {/* Other filters (yarın / hafta) */}
         {filter !== 'today' && filtered.length > 0 && (
           <div className="space-y-3">
             {filtered.map((event) => (
@@ -169,7 +243,17 @@ export default function Home() {
           </div>
         )}
 
-        {filtered.length === 0 && filter !== 'today' && (
+        {/* Empty state for today filter */}
+        {filter === 'today' && liveEvents.length === 0 && upcomingToday.length === 0 && (
+          <div className="text-center py-12">
+            <p className="text-body text-muted-foreground">
+              bugün takip ettiğin bir etkinlik yok
+              {tomorrowEvents.length > 0 ? ' — yarına bak ↓' : ''}
+            </p>
+          </div>
+        )}
+
+        {filter !== 'today' && filtered.length === 0 && (
           <div className="text-center py-16">
             <p className="text-body text-muted-foreground">
               bu zaman aralığında etkinlik yok
