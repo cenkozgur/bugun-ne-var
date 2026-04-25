@@ -40,23 +40,24 @@ export default function CountdownTimer({ targetTime, variant = 'inline' }) {
   const pad = (n) => String(n).padStart(2, '0');
 
   if (variant === 'hero') {
-    // For multi-day events show "3 gün" line above the HH:MM:SS clock so
-    // the big numbers still feel meaningful.
-    const showDayLine = remaining.days >= 1;
+    // Multi-day events get a leading GÜN cell so the saat hücresi reads as
+    // "remaining hours within today" instead of misleading total hours
+    // (e.g. 1 gün 3 saat away should show 01:03:11:00, not 03:11:00 which
+    // looks like 3 hours total).
+    const showDayCell = remaining.days >= 1;
     return (
-      <div className="flex flex-col items-center gap-2">
-        {showDayLine && (
-          <div className="text-title font-semibold text-muted-foreground">
-            {remaining.days} gün {remaining.hours} saat
-          </div>
+      <div className="flex items-center justify-center gap-3">
+        {showDayCell && (
+          <>
+            <Cell label="gün" value={pad(remaining.days)} />
+            <Sep />
+          </>
         )}
-        <div className="flex items-center gap-3">
-          <Cell label="saat" value={pad(showDayLine ? remaining.hours : remaining.totalHours)} />
-          <Sep />
-          <Cell label="dakika" value={pad(remaining.minutes)} />
-          <Sep />
-          <Cell label="saniye" value={pad(remaining.seconds)} />
-        </div>
+        <Cell label="saat" value={pad(remaining.hours)} />
+        <Sep />
+        <Cell label="dakika" value={pad(remaining.minutes)} />
+        <Sep />
+        <Cell label="saniye" value={pad(remaining.seconds)} />
       </div>
     );
   }

@@ -227,7 +227,7 @@ export default function EventDetail() {
             ) : (
               <>
                 <Bell className="w-4 h-4" />
-                beni hatırlat — 15 dk önce
+                bana hatırlat — 15 dk önce
               </>
             )}
           </button>
