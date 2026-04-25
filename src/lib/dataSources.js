@@ -75,7 +75,7 @@ export async function fetchUpcomingFootballMatches({ daysAhead = 2 } = {}) {
  * Returns 1-5 events (FP1, FP2/Sprint Quali, Sprint, Quali, Race)
  * depending on whether this is a sprint weekend.
  */
-export async function fetchUpcomingF1Sessions({ daysAhead = 7 } = {}) {
+export async function fetchUpcomingF1Sessions({ daysAhead = 14 } = {}) {
   const url = `${JOLPICA_BASE}/2026/next.json`;
   const res = await fetch(url);
   if (!res.ok) {

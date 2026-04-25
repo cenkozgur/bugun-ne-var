@@ -3,15 +3,20 @@ import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { Settings, Loader2, Compass } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { isToday, isTomorrow, isThisWeek, parseISO } from 'date-fns';
+import { isToday, isTomorrow, isThisWeek, isAfter, parseISO } from 'date-fns';
 import { getGreeting } from '@/lib/useTheme';
 import FilterChips from '@/components/home/FilterChips';
+import CategoryChips from '@/components/home/CategoryChips';
 import EventCard from '@/components/home/EventCard';
 import BottomTabBar from '@/components/common/BottomTabBar';
+import FilterModal, { EMPTY_FILTER, isFilterActive, applyFilter } from '@/components/common/FilterModal';
 import { rehydrateReminders } from '@/lib/reminders';
 
 export default function Home() {
-  const [filter, setFilter] = useState('today');
+  const [timeFilter, setTimeFilter] = useState('today');
+  const [activeCategoryId, setActiveCategoryId] = useState(null);
+  const [filterModalOpen, setFilterModalOpen] = useState(false);
+  const [filter, setFilter] = useState(EMPTY_FILTER);
   const greeting = getGreeting();
 
   const { data: events = [], isLoading: eventsLoading } = useQuery({
@@ -35,9 +40,6 @@ export default function Home() {
     return map;
   }, [categories]);
 
-  // Build the set of category ids the user is subscribed to. For now we
-  // only honour category-level subs; competition/entity-level filtering
-  // comes later when those entities have data.
   const subscribedCategoryIds = useMemo(() => {
     const set = new Set();
     for (const sub of subscriptions) {
@@ -48,28 +50,52 @@ export default function Home() {
     return set;
   }, [subscriptions]);
 
-  // Re-arm in-tab notification timers after a page reload.
+  // The actual category objects the user follows — feed for the chip row.
+  const subscribedCategories = useMemo(
+    () => categories.filter((c) => subscribedCategoryIds.has(c.id)),
+    [categories, subscribedCategoryIds]
+  );
+
   useEffect(() => {
     if (!events.length) return;
     const byId = Object.fromEntries(events.map((e) => [e.id, e]));
     rehydrateReminders(byId);
   }, [events]);
 
-  // Filter events to only those whose category the user follows. If they
-  // have zero subs we fall through to the empty-state below — showing
-  // every Event regardless would defeat the whole point of the app.
+  // Layer 1: only events from subscribed categories.
+  // Layer 2: optionally narrow to a single category chip.
+  // Layer 3: search/competition/prime-time filter modal.
   const subscribedEvents = useMemo(() => {
     if (subscribedCategoryIds.size === 0) return [];
     return events.filter((e) => subscribedCategoryIds.has(e.category_id));
   }, [events, subscribedCategoryIds]);
 
+  const categoryNarrowed = useMemo(() => {
+    if (!activeCategoryId) return subscribedEvents;
+    return subscribedEvents.filter((e) => e.category_id === activeCategoryId);
+  }, [subscribedEvents, activeCategoryId]);
+
+  const filteredAll = useMemo(() => applyFilter(categoryNarrowed, filter), [categoryNarrowed, filter]);
+
+  // Competition list shown in the filter modal — derived from what's
+  // actually visible after category narrowing, so the user doesn't see
+  // "Premier League" in the dropdown when they're filtered to F1.
+  const competitionList = useMemo(() => {
+    const seen = new Set();
+    for (const e of categoryNarrowed) {
+      if (e.competition_name) seen.add(e.competition_name);
+    }
+    return Array.from(seen).sort();
+  }, [categoryNarrowed]);
+
   const filtered = useMemo(() => {
-    return subscribedEvents
+    return filteredAll
       .filter((e) => {
         const d = parseISO(e.start_time);
-        if (filter === 'today') return isToday(d) || e.is_live;
-        if (filter === 'tomorrow') return isTomorrow(d);
-        if (filter === 'week') return isThisWeek(d, { weekStartsOn: 1 });
+        if (timeFilter === 'today') return isToday(d) || e.is_live;
+        if (timeFilter === 'tomorrow') return isTomorrow(d);
+        if (timeFilter === 'week') return isThisWeek(d, { weekStartsOn: 1 });
+        if (timeFilter === 'all') return isAfter(d, new Date()) || e.is_live;
         return true;
       })
       .sort((a, b) => {
@@ -77,16 +103,16 @@ export default function Home() {
         if (!a.is_live && b.is_live) return 1;
         return new Date(a.start_time) - new Date(b.start_time);
       });
-  }, [subscribedEvents, filter]);
+  }, [filteredAll, timeFilter]);
 
   const liveEvents = filtered.filter((e) => e.is_live);
   const upcomingToday = filtered.filter((e) => !e.is_live && isToday(parseISO(e.start_time)));
-  const tomorrowEvents = subscribedEvents
+  const tomorrowEvents = filteredAll
     .filter((e) => isTomorrow(parseISO(e.start_time)))
     .sort((a, b) => new Date(a.start_time) - new Date(b.start_time))
     .slice(0, 3);
 
-  const todayCount = subscribedEvents.filter(
+  const todayCount = filteredAll.filter(
     (e) => isToday(parseISO(e.start_time)) || e.is_live
   ).length;
 
@@ -98,9 +124,7 @@ export default function Home() {
     );
   }
 
-  // No subscriptions yet — push the user to pick something. We render
-  // greeting + tab bar so the layout doesn't feel broken, but the body
-  // is a single CTA.
+  // No subscriptions: route the user to onboarding.
   if (subscribedCategoryIds.size === 0) {
     return (
       <div className="min-h-screen bg-background pb-24">
@@ -168,15 +192,29 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Filter chips */}
+      {/* Time filter chips + filter button */}
+      <div className="px-5 mb-3">
+        <FilterChips
+          active={timeFilter}
+          onSelect={setTimeFilter}
+          onOpenFilters={() => setFilterModalOpen(true)}
+          filtersActive={isFilterActive(filter)}
+        />
+      </div>
+
+      {/* Category chips (only if user follows >1 category) */}
       <div className="px-5 mb-5">
-        <FilterChips active={filter} onSelect={setFilter} />
+        <CategoryChips
+          categories={subscribedCategories}
+          activeId={activeCategoryId}
+          onSelect={setActiveCategoryId}
+        />
       </div>
 
       {/* Content */}
       <div className="px-5 space-y-6">
-        {/* CANLI section */}
-        {filter === 'today' && liveEvents.length > 0 && (
+        {/* CANLI section (today only) */}
+        {timeFilter === 'today' && liveEvents.length > 0 && (
           <section>
             <h2 className="text-micro uppercase text-red-500 tracking-wider mb-3 flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-red-500 animate-live-pulse" />
@@ -195,7 +233,7 @@ export default function Home() {
         )}
 
         {/* BUGÜN section */}
-        {filter === 'today' && upcomingToday.length > 0 && (
+        {timeFilter === 'today' && upcomingToday.length > 0 && (
           <section>
             <h2 className="text-micro uppercase text-muted-foreground tracking-wider mb-3">
               bugün
@@ -213,7 +251,7 @@ export default function Home() {
         )}
 
         {/* YARIN preview (only on today filter) */}
-        {filter === 'today' && tomorrowEvents.length > 0 && (
+        {timeFilter === 'today' && tomorrowEvents.length > 0 && (
           <section>
             <h2 className="text-micro uppercase text-muted-foreground tracking-wider mb-3">
               yarın
@@ -230,8 +268,8 @@ export default function Home() {
           </section>
         )}
 
-        {/* Other filters (yarın / hafta) */}
-        {filter !== 'today' && filtered.length > 0 && (
+        {/* Other time filters: flat list */}
+        {timeFilter !== 'today' && filtered.length > 0 && (
           <div className="space-y-3">
             {filtered.map((event) => (
               <EventCard
@@ -243,8 +281,8 @@ export default function Home() {
           </div>
         )}
 
-        {/* Empty state for today filter */}
-        {filter === 'today' && liveEvents.length === 0 && upcomingToday.length === 0 && (
+        {/* Empty states */}
+        {timeFilter === 'today' && liveEvents.length === 0 && upcomingToday.length === 0 && (
           <div className="text-center py-12">
             <p className="text-body text-muted-foreground">
               bugün takip ettiğin bir etkinlik yok
@@ -253,14 +291,22 @@ export default function Home() {
           </div>
         )}
 
-        {filter !== 'today' && filtered.length === 0 && (
+        {timeFilter !== 'today' && filtered.length === 0 && (
           <div className="text-center py-16">
             <p className="text-body text-muted-foreground">
-              bu zaman aralığında etkinlik yok
+              bu kriterlerde etkinlik yok
             </p>
           </div>
         )}
       </div>
+
+      <FilterModal
+        open={filterModalOpen}
+        onClose={() => setFilterModalOpen(false)}
+        competitions={competitionList}
+        value={filter}
+        onChange={setFilter}
+      />
 
       <BottomTabBar />
     </div>
