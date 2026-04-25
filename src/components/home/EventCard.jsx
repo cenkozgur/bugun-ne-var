@@ -3,7 +3,8 @@ import { Link } from 'react-router-dom';
 import { MoreHorizontal, Bell, BellOff, CalendarPlus, Tv } from 'lucide-react';
 import CategoryBadge from '@/components/common/CategoryBadge';
 import CountdownTimer from '@/components/common/CountdownTimer';
-import { format } from 'date-fns';
+import { format, isToday, isTomorrow } from 'date-fns';
+import { tr } from 'date-fns/locale';
 import { useToast } from '@/components/ui/use-toast';
 import { downloadIcsForEvent } from '@/lib/ics';
 import { createReminder, removeReminder, isEventReminded } from '@/lib/reminders';
@@ -13,7 +14,17 @@ export default function EventCard({ event, category }) {
   const [busy, setBusy] = useState(false);
   const { toast } = useToast();
   const eventTime = new Date(event.start_time);
-  const timeStr = format(eventTime, 'HH:mm');
+  // For today's events just the time. Tomorrow gets a soft prefix. Anything
+  // further out shows the date so the user isn't squinting at "150 saat" trying
+  // to figure out which day it lands on.
+  let timeStr;
+  if (isToday(eventTime)) {
+    timeStr = format(eventTime, 'HH:mm');
+  } else if (isTomorrow(eventTime)) {
+    timeStr = `yarın ${format(eventTime, 'HH:mm')}`;
+  } else {
+    timeStr = format(eventTime, 'd MMM EEE • HH:mm', { locale: tr });
+  }
 
   useEffect(() => {
     setReminded(isEventReminded(event.id));

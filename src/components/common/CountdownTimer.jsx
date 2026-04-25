@@ -1,5 +1,13 @@
 import React, { useState, useEffect } from 'react';
 
+/**
+ * Tick mark display for "how long until this event starts".
+ *
+ * Inline variant scales the unit so far-out events read as days, near-term
+ * read as hours, and last-hour reads minute-precise. The hero variant
+ * (event detail) keeps HH:MM:SS like a launch clock — but if the event is
+ * more than ~36h away, also shows day count above so the user has context.
+ */
 export default function CountdownTimer({ targetTime, variant = 'inline' }) {
   const [remaining, setRemaining] = useState(null);
 
@@ -8,11 +16,14 @@ export default function CountdownTimer({ targetTime, variant = 'inline' }) {
       const now = new Date().getTime();
       const target = new Date(targetTime).getTime();
       const diff = target - now;
-      if (diff <= 0) return { hours: 0, minutes: 0, seconds: 0, total: 0 };
+      if (diff <= 0) return { days: 0, hours: 0, minutes: 0, seconds: 0, total: 0 };
       return {
-        hours: Math.floor(diff / (1000 * 60 * 60)),
+        days: Math.floor(diff / (1000 * 60 * 60 * 24)),
+        hours: Math.floor(diff / (1000 * 60 * 60)) % 24,
         minutes: Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60)),
         seconds: Math.floor((diff % (1000 * 60)) / 1000),
+        // Total hours regardless of day/hour split — useful for hero variant.
+        totalHours: Math.floor(diff / (1000 * 60 * 60)),
         total: diff,
       };
     };
@@ -23,36 +34,61 @@ export default function CountdownTimer({ targetTime, variant = 'inline' }) {
   }, [targetTime]);
 
   if (!remaining) return null;
+  if (remaining.total <= 0) return null;
 
-  const isUrgent = remaining.total > 0 && remaining.total < 3600000;
+  const isUrgent = remaining.total < 60 * 60 * 1000; // < 1h
   const pad = (n) => String(n).padStart(2, '0');
 
   if (variant === 'hero') {
+    // For multi-day events show "3 gün" line above the HH:MM:SS clock so
+    // the big numbers still feel meaningful.
+    const showDayLine = remaining.days >= 1;
     return (
-      <div className="flex items-center gap-3">
-        <div className="text-center">
-          <div className="text-display-xl tabular-nums font-bold text-foreground">{pad(remaining.hours)}</div>
-          <div className="text-micro text-muted-foreground uppercase tracking-wider mt-1">saat</div>
-        </div>
-        <div className="text-display-xl font-bold text-muted-foreground/40">:</div>
-        <div className="text-center">
-          <div className="text-display-xl tabular-nums font-bold text-foreground">{pad(remaining.minutes)}</div>
-          <div className="text-micro text-muted-foreground uppercase tracking-wider mt-1">dakika</div>
-        </div>
-        <div className="text-display-xl font-bold text-muted-foreground/40">:</div>
-        <div className="text-center">
-          <div className="text-display-xl tabular-nums font-bold text-foreground">{pad(remaining.seconds)}</div>
-          <div className="text-micro text-muted-foreground uppercase tracking-wider mt-1">saniye</div>
+      <div className="flex flex-col items-center gap-2">
+        {showDayLine && (
+          <div className="text-title font-semibold text-muted-foreground">
+            {remaining.days} gün {remaining.hours} saat
+          </div>
+        )}
+        <div className="flex items-center gap-3">
+          <Cell label="saat" value={pad(showDayLine ? remaining.hours : remaining.totalHours)} />
+          <Sep />
+          <Cell label="dakika" value={pad(remaining.minutes)} />
+          <Sep />
+          <Cell label="saniye" value={pad(remaining.seconds)} />
         </div>
       </div>
     );
   }
 
-  if (remaining.total <= 0) return null;
+  // inline (event card)
+  let label;
+  if (remaining.days >= 1) {
+    label = remaining.hours > 0
+      ? `${remaining.days} gün ${remaining.hours} sa`
+      : `${remaining.days} gün`;
+  } else if (remaining.totalHours >= 1) {
+    label = `${remaining.totalHours} sa ${remaining.minutes} dk`;
+  } else {
+    label = `${remaining.minutes} dk`;
+  }
 
   return (
     <span className={`tabular-nums text-caption ${isUrgent ? 'text-primary font-semibold' : 'text-muted-foreground'}`}>
-      ⏱ {remaining.hours > 0 ? `${remaining.hours} sa ` : ''}{remaining.minutes} dk
+      ⏱ {label}
     </span>
   );
+}
+
+function Cell({ label, value }) {
+  return (
+    <div className="text-center">
+      <div className="text-display-xl tabular-nums font-bold text-foreground">{value}</div>
+      <div className="text-micro text-muted-foreground uppercase tracking-wider mt-1">{label}</div>
+    </div>
+  );
+}
+
+function Sep() {
+  return <div className="text-display-xl font-bold text-muted-foreground/40">:</div>;
 }

@@ -155,10 +155,19 @@ export default function EventDetail() {
           </span>
         </div>
 
-        {/* Subtitle */}
+        {/* Subtitle — show concrete date so the countdown isn't ambiguous */}
         {!event.is_live && (
           <p className="text-caption text-muted-foreground mt-6 mb-2">
-            etkinliğe
+            {(() => {
+              const d = new Date(event.start_time);
+              return d.toLocaleString('tr-TR', {
+                weekday: 'long',
+                day: 'numeric',
+                month: 'long',
+                hour: '2-digit',
+                minute: '2-digit',
+              });
+            })()}
           </p>
         )}
 

@@ -14,7 +14,7 @@ export default function Yakinda() {
   const [filterModalOpen, setFilterModalOpen] = useState(false);
   const [filter, setFilter] = useState(EMPTY_FILTER);
 
-  const { data: events = [], isLoading } = useQuery({
+  const { data: events = [], isLoading: eventsLoading } = useQuery({
     queryKey: ['events'],
     queryFn: () => base44.entities.Event.list(),
   });
@@ -24,10 +24,12 @@ export default function Yakinda() {
     queryFn: () => base44.entities.Category.list(),
   });
 
-  const { data: subscriptions = [] } = useQuery({
+  const { data: subscriptions = [], isLoading: subsLoading } = useQuery({
     queryKey: ['subscriptions'],
     queryFn: () => base44.entities.UserSubscription.list(),
   });
+
+  const isLoading = eventsLoading || subsLoading;
 
   const categoryMap = useMemo(() => {
     const map = {};
