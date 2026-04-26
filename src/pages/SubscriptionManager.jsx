@@ -1,11 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Loader2, Check, Save } from 'lucide-react';
+import { Loader2, Check, Save, X } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { base44 } from '@/api/base44Client';
-import { getCategoryColorClass } from '@/lib/categoryUtils';
-import BottomTabBar from '@/components/common/BottomTabBar';
 import CategorySheet from '@/components/subscription/CategorySheet';
 import TeamSheet from '@/components/subscription/TeamSheet';
 
@@ -428,22 +426,39 @@ export default function SubscriptionManager({ mode = 'onboarding' }) {
     selection.wholeCategory.size > 0 ||
     Object.values(selection.compIdsByCat).some((s) => s.size > 0);
 
-  // Bottom padding: in manage mode we sit above the BottomTabBar
-  // (h-16 = 64px) PLUS the sticky save button (~80px). Onboarding has
-  // no tab bar, so just the save button worth of clearance.
-  const bottomPadClass = isOnboarding ? 'pb-32' : 'pb-44';
+  // BottomTabBar is hidden on this screen (in BOTH modes) so the sticky
+  // Kaydet button owns the bottom slot cleanly. Manage mode adds an X
+  // button in the header to return to '/'. Padding is just enough for
+  // the save button (~96px including safe-area).
+  const bottomPadClass = 'pb-32';
 
   return (
     <div className={`min-h-screen bg-background ${bottomPadClass}`}>
       <div className="px-5 pt-14 pb-5">
-        <h1 className="text-[32px] font-bold text-foreground leading-tight tracking-tight">
-          {isOnboarding ? 'neleri takip ediyorsun?' : 'takip ettiklerin'}
-        </h1>
-        <p className="text-[15px] text-muted-foreground mt-2 font-medium">
-          {isOnboarding
-            ? 'kategoriye dokun → ligleri seç → istersen takım daralt.'
-            : 'kategoriye dokunup düzenle. değişiklik yaparsan kaydet.'}
-        </p>
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex-1 min-w-0">
+            <h1 className="text-[32px] font-bold text-foreground leading-tight tracking-tight">
+              {isOnboarding ? 'neleri takip ediyorsun?' : 'takip ettiklerin'}
+            </h1>
+            <p className="text-[15px] text-muted-foreground mt-2 font-medium">
+              {isOnboarding
+                ? 'kategoriye dokun → ligleri seç → istersen takım daralt.'
+                : 'kategoriye dokunup düzenle. değişiklik yaparsan kaydet.'}
+            </p>
+          </div>
+          {/* Manage mode: explicit close button since the BottomTabBar
+              isn't rendered here. Without it the user would have to tap
+              Kaydet (and lose unsaved-warning context) to leave. */}
+          {!isOnboarding ? (
+            <button
+              onClick={() => navigate('/')}
+              className="mt-1 w-10 h-10 rounded-full bg-secondary/60 flex items-center justify-center press-scale shrink-0"
+              aria-label="Kapat"
+            >
+              <X className="w-5 h-5 text-foreground" strokeWidth={1.75} />
+            </button>
+          ) : null}
+        </div>
       </div>
 
       <div className="px-5 grid grid-cols-2 gap-3">
@@ -464,20 +479,13 @@ export default function SubscriptionManager({ mode = 'onboarding' }) {
           ))}
       </div>
 
-      {/* Sticky save CTA. Manage mode sits ABOVE the BottomTabBar
-          (which is fixed bottom: 0 + safe-area). Onboarding sits at
-          the actual bottom because there's no tab bar.
-          - z-40 keeps the CTA below the bottom-sheet scrim (z-50) so
-            opening a sheet visually covers it instead of layering on.
-          - bottom: env() respects iPhone home-indicator. Manage mode
-            offsets by tab-bar height (64px) on top of that. */}
+      {/* Sticky save CTA. The BottomTabBar is hidden on this screen
+          (in BOTH modes) so we own the bottom slot — no overlap math.
+          Inline padding-bottom respects the iPhone home-indicator
+          gesture area. */}
       <div
-        className="fixed left-0 right-0 z-40 px-5 pt-3 pb-3 bg-gradient-to-t from-background via-background to-transparent"
-        style={{
-          bottom: isOnboarding
-            ? 'env(safe-area-inset-bottom, 0px)'
-            : 'calc(64px + env(safe-area-inset-bottom, 0px))',
-        }}
+        className="fixed bottom-0 left-0 right-0 z-40 px-5 pt-4 bg-gradient-to-t from-background via-background to-background/95"
+        style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 16px)' }}
       >
         <button
           onClick={isOnboarding ? finishOnboarding : manualSave}
@@ -540,7 +548,7 @@ export default function SubscriptionManager({ mode = 'onboarding' }) {
         onChange={updateTeamSelection}
       />
 
-      {!isOnboarding ? <BottomTabBar /> : null}
+      {/* No BottomTabBar in either mode — see comment near header. */}
     </div>
   );
 }
