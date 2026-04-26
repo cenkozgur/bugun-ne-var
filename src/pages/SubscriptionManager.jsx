@@ -487,26 +487,33 @@ export default function SubscriptionManager({ mode = 'onboarding' }) {
         className="fixed bottom-0 left-0 right-0 z-40 px-5 pt-4 bg-gradient-to-t from-background via-background to-background/95"
         style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 16px)' }}
       >
-        <button
-          onClick={isOnboarding ? finishOnboarding : manualSave}
-          disabled={busy || (isOnboarding && !hasAny)}
-          className={`w-full py-4 rounded-full text-body font-semibold flex items-center justify-center gap-2 press-scale transition-all card-float ${
-            busy || (isOnboarding && !hasAny)
-              ? 'bg-muted text-muted-foreground'
-              : isDirty || isOnboarding
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-primary/70 text-primary-foreground'
-          }`}
-        >
-          {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : (
-            isOnboarding ? null : <Save className="w-4 h-4" />
-          )}
-          {isOnboarding
-            ? 'devam et'
-            : isDirty
-              ? 'kaydet'
-              : 'kaydedildi ✓'}
-        </button>
+        {(() => {
+          // Manage mode: always show 'kaydet' label. When nothing has
+          // been changed since last save, the button is disabled +
+          // muted so it reads as 'nothing to do' instead of misleading
+          // the user with 'kaydedildi' (which felt like 'just saved').
+          // Onboarding: 'devam et', enabled once at least one selection
+          // exists.
+          const onboardingDisabled = isOnboarding && !hasAny;
+          const manageDisabled = !isOnboarding && !isDirty;
+          const disabled = busy || onboardingDisabled || manageDisabled;
+          return (
+            <button
+              onClick={isOnboarding ? finishOnboarding : manualSave}
+              disabled={disabled}
+              className={`w-full py-4 rounded-full text-body font-semibold flex items-center justify-center gap-2 press-scale transition-all card-float ${
+                disabled
+                  ? 'bg-muted text-muted-foreground'
+                  : 'bg-primary text-primary-foreground'
+              }`}
+            >
+              {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : (
+                isOnboarding ? null : <Save className="w-4 h-4" />
+              )}
+              {isOnboarding ? 'devam et' : 'kaydet'}
+            </button>
+          );
+        })()}
       </div>
 
       {/* Manage mode also shows a transient saved-pill at the top so
