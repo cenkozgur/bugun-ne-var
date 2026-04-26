@@ -118,40 +118,53 @@ const BASKETBALL_LEAGUE_REFS = {
   BSL:        { compRef: 'league:bsl',        teamSlug: 'bsl' },
 };
 
-// api-basketball returns full club names (e.g. "Fenerbahce Beko Istanbul").
-// Our STATIC team rosters used short codes (FBB, EFES, etc) for slug
-// stability. This map resolves a fixture name back to the same slug the
-// static roster created. Unknown names fall through to a slugified
-// fallback in the same league's namespace — works but won't match a
-// pre-registered TrackedEntity, so the team won't be selectable in
-// onboarding until the static roster is extended.
+// Backend ingest sources currently active for basketball:
+//   - NBA: ESPN public scoreboard, team displayName like
+//     "Boston Celtics", "Los Angeles Lakers".
+// EuroLeague + BSL ingest is intentionally NOT wired (api-sports free
+// tier was years out of date, scrape sites all behind Cloudflare). For
+// those two leagues users can still subscribe to teams via the static
+// roster but won't see fixtures until we either pay for api-sports
+// basketball or add a Playwright-based scrape.
+//
+// This lookup translates each league's "raw upstream team name" → our
+// static-roster slug seed + a clean Turkish/English display name. The
+// slug seed MUST match what STATIC_LEAGUE_ROSTERS used so subscriptions
+// resolve. Unknown names fall back to a slugify in the league's
+// namespace — works but won't match a pre-registered TrackedEntity.
 const BASKETBALL_TEAM_TO_SLUG = {
-  // EuroLeague
-  'Fenerbahce Beko Istanbul':  { league: 'EuroLeague', slug: 'fbb',   display: 'Fenerbahçe Beko' },
-  'Anadolu Efes Istanbul':     { league: 'EuroLeague', slug: 'efes',  display: 'Anadolu Efes' },
-  'Real Madrid':               { league: 'EuroLeague', slug: 'rmb',   display: 'Real Madrid' },
-  'FC Barcelona':              { league: 'EuroLeague', slug: 'bar_b', display: 'FC Barcelona' },
-  'Olympiacos Piraeus':        { league: 'EuroLeague', slug: 'oly',   display: 'Olympiacos' },
-  'Panathinaikos AKTOR Athens':{ league: 'EuroLeague', slug: 'pao',   display: 'Panathinaikos AKTOR' },
-  'Maccabi Playtika Tel Aviv': { league: 'EuroLeague', slug: 'mac',   display: 'Maccabi Tel Aviv' },
-  'Zalgiris Kaunas':           { league: 'EuroLeague', slug: 'zal',   display: 'Žalgiris Kaunas' },
-  'Crvena Zvezda Meridianbet Belgrade': { league: 'EuroLeague', slug: 'czv', display: 'Crvena zvezda' },
-  'Partizan Mozzart Bet Belgrade': { league: 'EuroLeague', slug: 'par', display: 'Partizan' },
-  'EA7 Emporio Armani Milan':  { league: 'EuroLeague', slug: 'mil_b', display: 'Olimpia Milano' },
-  'Virtus Segafredo Bologna':  { league: 'EuroLeague', slug: 'virt',  display: 'Virtus Bologna' },
-  'LDLC ASVEL Villeurbanne':   { league: 'EuroLeague', slug: 'asv',   display: 'ASVEL' },
-  'AS Monaco':                 { league: 'EuroLeague', slug: 'mon_b', display: 'AS Monaco' },
-  'Paris Basketball':          { league: 'EuroLeague', slug: 'par_b', display: 'Paris Basketball' },
-  'FC Bayern Munich':          { league: 'EuroLeague', slug: 'bay_b', display: 'Bayern München' },
-  'ALBA Berlin':               { league: 'EuroLeague', slug: 'alba',  display: 'ALBA Berlin' },
-  'Baskonia Vitoria-Gasteiz':  { league: 'EuroLeague', slug: 'bas',   display: 'Baskonia' },
-  // BSL
-  'Galatasaray':               { league: 'BSL', slug: 'bsl_gs',     display: 'Galatasaray MCT Technic' },
-  'Besiktas':                  { league: 'BSL', slug: 'bsl_bjk',    display: 'Beşiktaş Fibabanka' },
-  'TOFAS Bursa':               { league: 'BSL', slug: 'bsl_tofas',  display: 'TOFAŞ' },
-  'Bahcesehir Koleji':         { league: 'BSL', slug: 'bsl_bah',    display: 'Bahçeşehir Koleji' },
-  'Turk Telekom Ankara':       { league: 'BSL', slug: 'bsl_ttel',   display: 'Türk Telekom' },
-  'Pinar Karsiyaka':           { league: 'BSL', slug: 'bsl_ksk',    display: 'Pınar Karşıyaka' },
+  // ── NBA (ESPN displayName → slug seed in STATIC_LEAGUE_ROSTERS.NBA) ──
+  'Boston Celtics':           { league: 'NBA', slug: 'bos', display: 'Boston Celtics' },
+  'Brooklyn Nets':            { league: 'NBA', slug: 'bkn', display: 'Brooklyn Nets' },
+  'New York Knicks':          { league: 'NBA', slug: 'nyk', display: 'New York Knicks' },
+  'Philadelphia 76ers':       { league: 'NBA', slug: 'phi', display: 'Philadelphia 76ers' },
+  'Toronto Raptors':          { league: 'NBA', slug: 'tor', display: 'Toronto Raptors' },
+  'Chicago Bulls':            { league: 'NBA', slug: 'chi', display: 'Chicago Bulls' },
+  'Cleveland Cavaliers':      { league: 'NBA', slug: 'cle', display: 'Cleveland Cavaliers' },
+  'Detroit Pistons':          { league: 'NBA', slug: 'det', display: 'Detroit Pistons' },
+  'Indiana Pacers':           { league: 'NBA', slug: 'ind', display: 'Indiana Pacers' },
+  'Milwaukee Bucks':          { league: 'NBA', slug: 'mil', display: 'Milwaukee Bucks' },
+  'Atlanta Hawks':            { league: 'NBA', slug: 'atl', display: 'Atlanta Hawks' },
+  'Charlotte Hornets':        { league: 'NBA', slug: 'cha', display: 'Charlotte Hornets' },
+  'Miami Heat':               { league: 'NBA', slug: 'mia', display: 'Miami Heat' },
+  'Orlando Magic':            { league: 'NBA', slug: 'orl', display: 'Orlando Magic' },
+  'Washington Wizards':       { league: 'NBA', slug: 'was', display: 'Washington Wizards' },
+  'Denver Nuggets':           { league: 'NBA', slug: 'den', display: 'Denver Nuggets' },
+  'Minnesota Timberwolves':   { league: 'NBA', slug: 'min', display: 'Minnesota Timberwolves' },
+  'Oklahoma City Thunder':    { league: 'NBA', slug: 'okc', display: 'Oklahoma City Thunder' },
+  'Portland Trail Blazers':   { league: 'NBA', slug: 'por', display: 'Portland Trail Blazers' },
+  'Utah Jazz':                { league: 'NBA', slug: 'uta', display: 'Utah Jazz' },
+  'Golden State Warriors':    { league: 'NBA', slug: 'gsw', display: 'Golden State Warriors' },
+  'LA Clippers':              { league: 'NBA', slug: 'lac', display: 'LA Clippers' },
+  'Los Angeles Clippers':     { league: 'NBA', slug: 'lac', display: 'LA Clippers' }, // ESPN sometimes uses long form
+  'Los Angeles Lakers':       { league: 'NBA', slug: 'lal', display: 'Los Angeles Lakers' },
+  'Phoenix Suns':             { league: 'NBA', slug: 'phx', display: 'Phoenix Suns' },
+  'Sacramento Kings':         { league: 'NBA', slug: 'sac', display: 'Sacramento Kings' },
+  'Dallas Mavericks':         { league: 'NBA', slug: 'dal', display: 'Dallas Mavericks' },
+  'Houston Rockets':          { league: 'NBA', slug: 'hou', display: 'Houston Rockets' },
+  'Memphis Grizzlies':        { league: 'NBA', slug: 'mem', display: 'Memphis Grizzlies' },
+  'New Orleans Pelicans':     { league: 'NBA', slug: 'nop', display: 'New Orleans Pelicans' },
+  'San Antonio Spurs':        { league: 'NBA', slug: 'sas', display: 'San Antonio Spurs' },
 };
 
 function resolveBasketballTeamRef(rawName, fallbackLeague) {
