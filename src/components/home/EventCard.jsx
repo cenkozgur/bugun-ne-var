@@ -72,83 +72,83 @@ export default function EventCard({ event, category }) {
   // On live events we hide reminder button (makes no sense) and replace with a watch link if we have broadcaster.
   const actionsForLive = event.is_live;
 
+  const colorClass = category ? `cat-${category.slug}` : 'cat-futbol';
+
   return (
     <Link
       to={`/event/${event.id}`}
-      className="block bg-card border border-border rounded-lg p-4 press-scale transition-transform"
+      className={`relative block bg-card rounded-[20px] pl-5 pr-4 pt-4 pb-4 overflow-hidden press-scale transition-transform card-elevated ${
+        event.is_live ? 'live-glow' : ''
+      }`}
     >
-      {/* Row 1: Badge + Meta + Overflow */}
-      <div className="flex items-start gap-3">
-        <CategoryBadge category={category} size="md" />
+      {/* Left vertical accent bar (category color) */}
+      <span className={`accent-bar bg-${colorClass}`} />
+
+      {/* Row 1: Meta + time */}
+      <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
           <p className="text-micro uppercase text-muted-foreground tracking-wider">
             {event.competition_name}
           </p>
-          <p className="text-caption text-muted-foreground mt-0.5">
-            {event.is_live && event.live_status
-              ? <span className="text-primary font-medium">{event.live_status}</span>
-              : timeStr}
-          </p>
         </div>
-        <button
-          className="p-1 text-muted-foreground"
-          onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
-        >
-          <MoreHorizontal className="w-4 h-4" />
-        </button>
+        <div className="text-right shrink-0">
+          {event.is_live && event.live_status ? (
+            <span className="text-[11px] font-semibold text-red-500 tabular-nums">{event.live_status}</span>
+          ) : (
+            <span className="text-caption text-muted-foreground tabular-nums font-medium">{timeStr}</span>
+          )}
+        </div>
       </div>
 
       {/* Row 2: Title */}
-      <h3 className="text-body font-semibold text-foreground mt-2.5 line-clamp-2">
+      <h3 className="text-body font-semibold text-foreground mt-2 line-clamp-2 leading-snug">
         {event.title}
       </h3>
 
       {/* Row 3: Broadcaster */}
       {event.broadcaster && (
-        <p className="text-caption text-muted-foreground mt-1.5">
-          📺 {event.broadcaster}
+        <p className="text-[12px] text-muted-foreground mt-1.5 flex items-center gap-1">
+          <Tv className="w-3 h-3 shrink-0" strokeWidth={1.75} />
+          {event.broadcaster}
         </p>
       )}
 
-      {/* Divider + countdown only for upcoming */}
+      {/* Countdown for upcoming */}
       {showCountdownRow && (
-        <>
-          <div className="border-t border-border my-3" />
-          <div className="mb-3">
-            <CountdownTimer targetTime={event.start_time} />
-          </div>
-        </>
+        <div className="mt-3">
+          <CountdownTimer targetTime={event.start_time} />
+        </div>
       )}
 
-      {/* Row 5: Action buttons */}
-      <div className="flex gap-2 mt-3">
+      {/* Action buttons — ghost style */}
+      <div className="flex gap-1 mt-3 -mx-1">
         {actionsForLive ? (
           <button
-            onClick={(e) => { e.preventDefault(); e.stopPropagation(); /* link will still navigate */ }}
-            className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-caption font-medium bg-primary/10 text-primary press-scale"
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
+            className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-2xl text-[12px] font-semibold text-red-500 bg-red-500/8 press-scale"
           >
-            <Tv className="w-3.5 h-3.5" />
+            <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-live-pulse" />
             şimdi yayında
           </button>
         ) : (
           <button
             onClick={handleReminder}
             disabled={busy}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-caption font-medium transition-colors press-scale ${
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-2xl text-[12px] font-medium transition-colors press-scale ${
               reminded
-                ? 'bg-primary/10 text-primary'
-                : 'bg-secondary text-secondary-foreground'
+                ? 'text-primary bg-primary/10'
+                : 'text-muted-foreground bg-secondary/60'
             } disabled:opacity-60`}
           >
-            {reminded ? <BellOff className="w-3.5 h-3.5" /> : <Bell className="w-3.5 h-3.5" />}
+            {reminded ? <BellOff className="w-3.5 h-3.5" strokeWidth={1.75} /> : <Bell className="w-3.5 h-3.5" strokeWidth={1.75} />}
             {reminded ? 'hatırlatıldı ✓' : 'hatırlat'}
           </button>
         )}
         <button
           onClick={handleAddToCalendar}
-          className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-caption font-medium bg-secondary text-secondary-foreground press-scale"
+          className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-2xl text-[12px] font-medium text-muted-foreground bg-secondary/60 press-scale"
         >
-          <CalendarPlus className="w-3.5 h-3.5" />
+          <CalendarPlus className="w-3.5 h-3.5" strokeWidth={1.75} />
           takvime ekle
         </button>
       </div>

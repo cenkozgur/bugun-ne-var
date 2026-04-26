@@ -435,11 +435,11 @@ export default function SubscriptionManager({ mode = 'onboarding' }) {
 
   return (
     <div className={`min-h-screen bg-background ${bottomPadClass}`}>
-      <div className="px-5 pt-14 pb-4">
-        <h1 className="text-display font-bold text-foreground leading-tight">
+      <div className="px-5 pt-14 pb-5">
+        <h1 className="text-[32px] font-bold text-foreground leading-tight tracking-tight">
           {isOnboarding ? 'neleri takip ediyorsun?' : 'takip ettiklerin'}
         </h1>
-        <p className="text-body text-muted-foreground mt-2">
+        <p className="text-[15px] text-muted-foreground mt-2 font-medium">
           {isOnboarding
             ? 'kategoriye dokun → ligleri seç → istersen takım daralt.'
             : 'kategoriye dokunup düzenle. değişiklik yaparsan kaydet.'}
@@ -482,12 +482,12 @@ export default function SubscriptionManager({ mode = 'onboarding' }) {
         <button
           onClick={isOnboarding ? finishOnboarding : manualSave}
           disabled={busy || (isOnboarding && !hasAny)}
-          className={`w-full py-4 rounded-full text-body font-semibold flex items-center justify-center gap-2 press-scale transition-all shadow-lg ${
+          className={`w-full py-4 rounded-full text-body font-semibold flex items-center justify-center gap-2 press-scale transition-all card-float ${
             busy || (isOnboarding && !hasAny)
               ? 'bg-muted text-muted-foreground'
               : isDirty || isOnboarding
-                ? 'bg-foreground text-background'
-                : 'bg-foreground/70 text-background'
+                ? 'bg-primary text-primary-foreground'
+                : 'bg-primary/70 text-primary-foreground'
           }`}
         >
           {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : (
@@ -504,8 +504,8 @@ export default function SubscriptionManager({ mode = 'onboarding' }) {
       {/* Manage mode also shows a transient saved-pill at the top so
           the user gets feedback that the explicit save succeeded. */}
       {!isOnboarding && savingState === 'saved' ? (
-        <div className="fixed top-3 left-1/2 -translate-x-1/2 z-30 px-3 py-1.5 rounded-full bg-foreground text-background text-caption font-medium flex items-center gap-1.5 shadow-md">
-          <Save className="w-3.5 h-3.5" />
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-30 px-4 py-2 rounded-full bg-primary text-primary-foreground text-caption font-semibold flex items-center gap-1.5 card-float animate-in fade-in slide-in-from-top-2 duration-200">
+          <Check className="w-3.5 h-3.5" strokeWidth={2.5} />
           kaydedildi
         </div>
       ) : null}
@@ -545,27 +545,40 @@ export default function SubscriptionManager({ mode = 'onboarding' }) {
   );
 }
 
+const CATEGORY_GRADIENTS = {
+  futbol: 'from-green-400 to-emerald-500',
+  f1: 'from-red-500 to-rose-600',
+  motogp: 'from-orange-400 to-orange-500',
+  basketbol: 'from-orange-500 to-amber-500',
+  tenis: 'from-yellow-400 to-lime-400',
+  voleybol: 'from-blue-400 to-blue-600',
+  tv: 'from-purple-500 to-violet-600',
+  turnuva: 'from-amber-400 to-yellow-500',
+};
+
 function CategoryTile({ category, active, subtitle, onClick }) {
-  const colorClass = getCategoryColorClass(category);
+  const gradient = CATEGORY_GRADIENTS[category.slug] || 'from-slate-400 to-slate-500';
   return (
     <button
       onClick={onClick}
-      className={`relative w-full p-4 rounded-xl border text-left transition-all press-scale ${
-        active ? 'border-primary bg-primary/5' : 'border-border bg-card'
+      className={`relative w-full p-4 rounded-[20px] text-left transition-all press-scale glass-tile card-elevated ${
+        active
+          ? 'ring-[1.5px] ring-primary shadow-[0_0_0_4px_hsl(var(--primary)/0.12)]'
+          : 'bg-card'
       }`}
     >
       {active ? (
-        <div className="absolute top-3 right-3">
-          <Check className="w-5 h-5 text-primary" />
+        <div className="absolute top-3 right-3 w-5 h-5 rounded-full bg-primary flex items-center justify-center">
+          <Check className="w-3 h-3 text-primary-foreground" strokeWidth={2.5} />
         </div>
       ) : null}
       <div
-        className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl mb-3 bg-${colorClass}/15`}
+        className={`w-10 h-10 rounded-[14px] flex items-center justify-center text-xl mb-3 bg-gradient-to-br ${gradient} shadow-sm`}
       >
         {category.emoji}
       </div>
-      <h3 className="text-body font-semibold text-foreground">{category.name}</h3>
-      <p className="text-caption text-muted-foreground mt-0.5 line-clamp-1">
+      <h3 className="text-[15px] font-semibold text-foreground">{category.name}</h3>
+      <p className="text-[12px] text-muted-foreground mt-0.5 line-clamp-1 font-medium">
         {subtitle}
       </p>
     </button>

@@ -14,11 +14,7 @@ export default function BottomTabBar() {
 
   return (
     <nav
-      className="fixed bottom-0 left-0 right-0 z-50 bg-card/95 backdrop-blur-lg border-t border-border"
-      // iOS PWA: respect home-indicator safe area. Inline style is more
-      // reliable across mobile Safari than the Tailwind arbitrary
-      // utility, which sometimes drops the env() call in production
-      // builds.
+      className="fixed bottom-0 left-0 right-0 z-50 tab-glass bg-card/80"
       style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
     >
       <div className="max-w-md mx-auto flex items-center justify-around px-2 h-16">
@@ -29,12 +25,26 @@ export default function BottomTabBar() {
             <Link
               key={tab.path}
               to={tab.path}
-              className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl transition-colors press-scale ${
-                isActive ? 'text-primary' : 'text-muted-foreground'
-              }`}
+              className="flex flex-col items-center gap-1 px-4 py-1.5 press-scale"
             >
-              <Icon className="w-5 h-5" strokeWidth={isActive ? 2.2 : 1.8} />
-              <span className="text-[10px] font-medium">{tab.label}</span>
+              <div className="relative">
+                <Icon
+                  className={`w-[22px] h-[22px] transition-colors ${
+                    isActive ? 'text-primary' : 'text-muted-foreground/60'
+                  }`}
+                  strokeWidth={1.75}
+                />
+                {isActive && (
+                  <span className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-primary" />
+                )}
+              </div>
+              <span
+                className={`text-[10px] font-medium transition-opacity ${
+                  isActive ? 'text-primary opacity-100' : 'opacity-0 h-0 overflow-hidden'
+                }`}
+              >
+                {tab.label}
+              </span>
             </Link>
           );
         })}

@@ -45,48 +45,48 @@ export default function BottomSheet({
         type="button"
         aria-label="Kapat"
         onClick={onClose}
-        className="absolute inset-0 bg-black/50"
+        className="absolute inset-0 bg-black/50 sheet-backdrop"
       />
-      <div className="relative w-full max-w-md bg-background rounded-t-3xl border-t border-border max-h-[88vh] flex flex-col animate-in slide-in-from-bottom duration-200">
+      <div className="relative w-full max-w-md bg-card rounded-t-[28px] max-h-[88vh] flex flex-col animate-in slide-in-from-bottom duration-250">
         {/* Drag handle */}
-        <div className="pt-2 pb-1 flex justify-center">
-          <div className="w-10 h-1 rounded-full bg-muted" />
+        <div className="pt-3 pb-1 flex justify-center">
+          <div className="w-9 h-1 rounded-full bg-muted-foreground/25" />
         </div>
 
         {/* Header */}
-        <div className="flex items-center gap-2 px-4 pt-2 pb-3">
+        <div className="flex items-center gap-2 px-5 pt-2 pb-3">
           {onBack ? (
             <button
               onClick={onBack}
-              className="w-9 h-9 rounded-full bg-secondary flex items-center justify-center press-scale"
+              className="w-8 h-8 rounded-full bg-secondary/60 flex items-center justify-center press-scale"
               aria-label="Geri"
             >
-              <ChevronLeft className="w-4 h-4 text-foreground" />
+              <ChevronLeft className="w-4 h-4 text-foreground" strokeWidth={1.75} />
             </button>
           ) : null}
           <div className="flex-1 min-w-0">
-            <h2 className="text-title font-semibold text-foreground truncate">{title}</h2>
+            <h2 className="text-[17px] font-semibold text-foreground truncate leading-tight">{title}</h2>
             {subtitle ? (
-              <p className="text-caption text-muted-foreground truncate">{subtitle}</p>
+              <p className="text-[13px] text-muted-foreground truncate mt-0.5">{subtitle}</p>
             ) : null}
           </div>
           <button
             onClick={onClose}
-            className="w-9 h-9 rounded-full bg-secondary flex items-center justify-center press-scale"
+            className="w-8 h-8 rounded-full bg-secondary/60 flex items-center justify-center press-scale"
             aria-label="Kapat"
           >
-            <X className="w-4 h-4 text-foreground" />
+            <X className="w-4 h-4 text-foreground" strokeWidth={1.75} />
           </button>
         </div>
 
         {/* Body — scrollable */}
-        <div className="flex-1 overflow-y-auto px-4 pb-2">
+        <div className="flex-1 overflow-y-auto px-5 pb-2">
           {children}
         </div>
 
         {/* Footer — fixed at bottom of sheet */}
         {footer ? (
-          <div className="px-4 pt-3 pb-6 border-t border-border bg-background">
+          <div className="px-5 pt-3 pb-6 bg-card">
             {footer}
           </div>
         ) : null}

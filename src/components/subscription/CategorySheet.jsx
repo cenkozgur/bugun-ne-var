@@ -70,7 +70,7 @@ export default function CategorySheet({
       footer={
         <button
           onClick={onClose}
-          className="w-full py-3 rounded-xl bg-foreground text-background text-body font-semibold press-scale"
+          className="w-full py-3.5 rounded-full bg-primary text-primary-foreground text-body font-semibold press-scale shadow-md"
         >
           {totalSubscribed > 0 ? `${totalSubscribed} lig seçili — kapat` : 'kapat'}
         </button>
@@ -85,7 +85,7 @@ export default function CategorySheet({
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="lig ara…"
-            className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-secondary text-foreground text-body placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+            className="w-full pl-9 pr-3 py-2.5 rounded-2xl bg-secondary/60 text-foreground text-body placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
           />
         </div>
       ) : null}
@@ -96,10 +96,10 @@ export default function CategorySheet({
       {competitions.length > 0 ? (
         <button
           onClick={toggleAll}
-          className={`w-full px-4 py-3 rounded-xl border-2 flex items-center justify-between mb-3 press-scale transition-colors ${
+          className={`w-full px-4 py-3 rounded-2xl border-[1.5px] flex items-center justify-between mb-3 press-scale transition-all ${
             allChecked
               ? 'border-primary bg-primary/10 text-foreground'
-              : 'border-dashed border-border bg-transparent text-muted-foreground'
+              : 'border-dashed border-muted-foreground/30 bg-transparent text-muted-foreground'
           }`}
         >
           <span className="text-body font-semibold">
@@ -120,7 +120,7 @@ export default function CategorySheet({
           return (
             <div
               key={comp.id}
-              className={`rounded-xl ${checked ? 'bg-foreground text-background' : 'bg-secondary text-foreground'}`}
+              className={`rounded-2xl transition-colors ${checked ? 'bg-primary text-primary-foreground' : 'bg-secondary/60 text-foreground'}`}
             >
               <button
                 onClick={() => toggleComp(comp.id)}
@@ -128,7 +128,7 @@ export default function CategorySheet({
               >
                 <span className="flex-1 text-body font-medium">{comp.name}</span>
                 <span className={`w-5 h-5 rounded-full flex items-center justify-center ${
-                  checked ? 'bg-background/20 text-background' : 'border border-border'
+                  checked ? 'bg-primary-foreground/20 text-primary-foreground' : 'border border-muted-foreground/30'
                 }`}>
                   {checked ? <Check className="w-3 h-3" /> : null}
                 </span>
@@ -138,9 +138,7 @@ export default function CategorySheet({
               {checked && onOpenTeams ? (
                 <button
                   onClick={() => onOpenTeams(comp)}
-                  className={`w-full px-4 pb-3 -mt-1 flex items-center gap-2 text-caption press-scale ${
-                    'text-background/80 hover:text-background'
-                  }`}
+                  className="w-full px-4 pb-3 -mt-1 flex items-center gap-2 text-[12px] press-scale text-primary-foreground/75"
                 >
                   <Users className="w-3.5 h-3.5" />
                   {narrowedCount > 0

@@ -15,10 +15,10 @@ export default function FilterChips({ active, onSelect, onOpenFilters, filtersAc
         <button
           key={f.key}
           onClick={() => onSelect(f.key)}
-          className={`px-4 py-2 rounded-full text-caption font-medium whitespace-nowrap transition-colors press-scale ${
+          className={`px-4 py-2 rounded-full text-[13px] whitespace-nowrap transition-all press-scale ${
             active === f.key
-              ? 'bg-primary/15 text-primary'
-              : 'bg-secondary text-muted-foreground'
+              ? 'bg-primary text-primary-foreground font-semibold shadow-sm'
+              : 'bg-secondary/60 text-muted-foreground font-medium'
           }`}
         >
           {f.label}
@@ -26,10 +26,10 @@ export default function FilterChips({ active, onSelect, onOpenFilters, filtersAc
       ))}
       <button
         onClick={onOpenFilters}
-        className={`relative px-3 py-2 rounded-full press-scale ${
+        className={`relative px-3 py-2 rounded-full press-scale transition-all ${
           filtersActive
             ? 'bg-primary/15 text-primary'
-            : 'bg-secondary text-muted-foreground'
+            : 'bg-secondary/60 text-muted-foreground'
         }`}
       >
         <SlidersHorizontal className="w-4 h-4" />

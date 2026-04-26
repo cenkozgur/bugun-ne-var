@@ -191,34 +191,32 @@ export default function Home() {
       <div className="min-h-screen bg-background pb-24">
         <div className="px-5 pt-14 pb-4 flex items-start justify-between">
           <div>
-            <h1 className="text-display font-bold text-foreground">
+            <h1 className="text-[32px] font-bold text-foreground leading-tight tracking-tight">
               {greeting.text} {greeting.emoji}
             </h1>
-            <p className="text-body text-muted-foreground mt-1">
+            <p className="text-[15px] text-muted-foreground mt-1 font-medium">
               henüz hiçbir şey takip etmiyorsun
             </p>
           </div>
           <Link
             to="/ayarlar"
-            className="mt-1 p-2 rounded-xl bg-secondary text-muted-foreground press-scale"
+            className="mt-1 p-2.5 rounded-2xl bg-secondary/60 text-muted-foreground press-scale"
           >
-            <Settings className="w-5 h-5" />
+            <Settings className="w-5 h-5" strokeWidth={1.75} />
           </Link>
         </div>
 
         <div className="px-5 pt-12 flex flex-col items-center text-center">
-          <div className="w-16 h-16 rounded-full bg-secondary flex items-center justify-center mb-6">
-            <Compass className="w-7 h-7 text-muted-foreground" />
-          </div>
-          <h2 className="text-title font-semibold text-foreground mb-2">
+          <div className="text-5xl mb-5">🏟️</div>
+          <h2 className="text-[20px] font-semibold text-foreground mb-2 tracking-tight">
             ne takip etmek istersin?
           </h2>
-          <p className="text-body text-muted-foreground mb-8 max-w-xs">
+          <p className="text-[15px] text-muted-foreground mb-8 max-w-xs leading-relaxed">
             kategorileri seç, sadece ilgilendiklerini gör.
           </p>
           <Link
             to="/onboarding"
-            className="px-6 py-3 rounded-full bg-foreground text-background text-body font-semibold press-scale"
+            className="px-6 py-3.5 rounded-full bg-primary text-primary-foreground text-body font-semibold press-scale shadow-md"
           >
             kategorileri seç →
           </Link>
@@ -235,10 +233,10 @@ export default function Home() {
       <div className="px-5 pt-14 pb-4">
         <div className="flex items-start justify-between">
           <div>
-            <h1 className="text-display font-bold text-foreground">
+            <h1 className="text-[32px] font-bold text-foreground leading-tight tracking-tight">
               {greeting.text} {greeting.emoji}
             </h1>
-            <p className="text-body text-muted-foreground mt-1">
+            <p className="text-[15px] text-muted-foreground mt-1 font-medium">
               {todayCount > 0
                 ? `bugün ${todayCount} etkinlik var`
                 : tomorrowEvents.length > 0
@@ -248,9 +246,9 @@ export default function Home() {
           </div>
           <Link
             to="/ayarlar"
-            className="mt-1 p-2 rounded-xl bg-secondary text-muted-foreground press-scale"
+            className="mt-1 p-2.5 rounded-2xl bg-secondary/60 text-muted-foreground press-scale"
           >
-            <Settings className="w-5 h-5" />
+            <Settings className="w-5 h-5" strokeWidth={1.75} />
           </Link>
         </div>
       </div>
@@ -334,18 +332,24 @@ export default function Home() {
         {timeFilter === 'today' &&
           liveEvents.length === 0 &&
           upcomingToday.length === 0 && (
-            <div className="text-center py-12">
-              <p className="text-body text-muted-foreground">
+            <div className="text-center py-16 flex flex-col items-center">
+              <div className="text-5xl mb-4">😴</div>
+              <h3 className="text-[17px] font-semibold text-foreground mb-1">bugün sakin</h3>
+              <p className="text-[14px] text-muted-foreground max-w-xs leading-relaxed">
                 {subscribedEvents.length === 0
-                  ? 'takip ettiklerin bu sıralar sahada yok — keşfet sekmesinden ekleyebilirsin'
+                  ? 'takip ettiklerin bu sıralar sahada yok'
                   : 'bugün takip ettiğin bir etkinlik yok'}
               </p>
             </div>
           )}
 
         {timeFilter !== 'today' && filtered.length === 0 && (
-          <div className="text-center py-16">
-            <p className="text-body text-muted-foreground">
+          <div className="text-center py-16 flex flex-col items-center">
+            <div className="text-5xl mb-4">🔍</div>
+            <h3 className="text-[17px] font-semibold text-foreground mb-1">
+              {subscribedEvents.length === 0 ? 'sahada yok' : 'etkinlik bulunamadı'}
+            </h3>
+            <p className="text-[14px] text-muted-foreground max-w-xs leading-relaxed">
               {subscribedEvents.length === 0
                 ? 'takip ettiklerin bu sıralar sahada yok'
                 : 'bu kriterlerde etkinlik yok'}

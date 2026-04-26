@@ -55,7 +55,7 @@ export default function TeamSheet({
       footer={
         <button
           onClick={onBack || onClose}
-          className="w-full py-3 rounded-xl bg-foreground text-background text-body font-semibold press-scale"
+          className="w-full py-3.5 rounded-full bg-primary text-primary-foreground text-body font-semibold press-scale shadow-md"
         >
           {selectedTeamIds.size > 0
             ? `${selectedTeamIds.size} takım seçili — kapat`
@@ -71,7 +71,7 @@ export default function TeamSheet({
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="takım ara…"
-            className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-secondary text-foreground text-body placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+            className="w-full pl-9 pr-3 py-2.5 rounded-2xl bg-secondary/60 text-foreground text-body placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
           />
         </div>
       ) : null}
@@ -79,10 +79,10 @@ export default function TeamSheet({
       {teams.length > 0 ? (
         <button
           onClick={toggleAll}
-          className={`w-full px-4 py-3 rounded-xl border-2 flex items-center justify-between mb-3 press-scale transition-colors ${
+          className={`w-full px-4 py-3 rounded-2xl border-[1.5px] flex items-center justify-between mb-3 press-scale transition-all ${
             allFollowed
               ? 'border-primary bg-primary/10 text-foreground'
-              : 'border-dashed border-border bg-transparent text-muted-foreground'
+              : 'border-dashed border-muted-foreground/30 bg-transparent text-muted-foreground'
           }`}
         >
           <span className="text-body font-semibold">
@@ -101,13 +101,13 @@ export default function TeamSheet({
             <button
               key={t.id}
               onClick={() => toggleTeam(t.id)}
-              className={`w-full px-4 py-3 rounded-xl flex items-center gap-3 text-left press-scale transition-colors ${
-                checked ? 'bg-foreground text-background' : 'bg-secondary text-foreground'
+              className={`w-full px-4 py-3 rounded-2xl flex items-center gap-3 text-left press-scale transition-colors ${
+                checked ? 'bg-primary text-primary-foreground' : 'bg-secondary/60 text-foreground'
               }`}
             >
               <span className="flex-1 text-body font-medium">{t.name}</span>
               <span className={`w-5 h-5 rounded-full flex items-center justify-center ${
-                checked ? 'bg-background/20 text-background' : 'border border-border'
+                checked ? 'bg-primary-foreground/20 text-primary-foreground' : 'border border-muted-foreground/30'
               }`}>
                 {checked ? <Check className="w-3 h-3" /> : null}
               </span>

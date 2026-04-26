@@ -158,20 +158,20 @@ export default function Yakinda() {
     <div className="min-h-screen bg-background pb-24">
       <div className="px-5 pt-14 pb-4 flex items-start justify-between">
         <div>
-          <h1 className="text-display font-bold text-foreground">yakında</h1>
-          <p className="text-body text-muted-foreground mt-1">
+          <h1 className="text-[32px] font-bold text-foreground leading-tight tracking-tight">yakında</h1>
+          <p className="text-[15px] text-muted-foreground mt-1 font-medium">
             önümüzdeki etkinlikler
           </p>
         </div>
         <button
           onClick={() => setFilterModalOpen(true)}
-          className={`relative mt-1 p-2 rounded-xl press-scale ${
+          className={`relative mt-1 p-2.5 rounded-2xl press-scale transition-all ${
             isFilterActive(filter)
               ? 'bg-primary/15 text-primary'
-              : 'bg-secondary text-muted-foreground'
+              : 'bg-secondary/60 text-muted-foreground'
           }`}
         >
-          <SlidersHorizontal className="w-5 h-5" />
+          <SlidersHorizontal className="w-5 h-5" strokeWidth={1.75} />
           {isFilterActive(filter) && (
             <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-primary" />
           )}
@@ -206,8 +206,12 @@ export default function Yakinda() {
         ))}
 
         {grouped.length === 0 && (
-          <div className="text-center py-16">
-            <p className="text-body text-muted-foreground">
+          <div className="text-center py-16 flex flex-col items-center">
+            <div className="text-5xl mb-4">📅</div>
+            <h3 className="text-[17px] font-semibold text-foreground mb-1">
+              {subscribedCategoryIds.size === 0 ? 'henüz takip yok' : 'etkinlik bulunamadı'}
+            </h3>
+            <p className="text-[14px] text-muted-foreground max-w-xs leading-relaxed">
               {subscribedCategoryIds.size === 0
                 ? 'henüz hiçbir kategori takip etmiyorsun'
                 : 'bu kriterlerde yaklaşan etkinlik yok'}

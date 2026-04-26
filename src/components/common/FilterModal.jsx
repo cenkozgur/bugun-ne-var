@@ -51,17 +51,20 @@ export default function FilterModal({
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center">
       <div
-        className="absolute inset-0 bg-black/40"
+        className="absolute inset-0 bg-black/50 sheet-backdrop"
         onClick={onClose}
       />
-      <div className="relative w-full max-w-md bg-background rounded-t-3xl border-t border-border max-h-[80vh] overflow-y-auto">
-        <div className="flex items-center justify-between px-5 pt-5 pb-3">
-          <h2 className="text-title font-semibold text-foreground">filtre</h2>
+      <div className="relative w-full max-w-md bg-card rounded-t-[28px] max-h-[80vh] overflow-y-auto">
+        <div className="pt-3 pb-1 flex justify-center">
+          <div className="w-9 h-1 rounded-full bg-muted-foreground/25" />
+        </div>
+        <div className="flex items-center justify-between px-5 pt-2 pb-3">
+          <h2 className="text-[17px] font-semibold text-foreground">filtre</h2>
           <button
             onClick={onClose}
-            className="w-9 h-9 rounded-full bg-secondary flex items-center justify-center press-scale"
+            className="w-8 h-8 rounded-full bg-secondary/60 flex items-center justify-center press-scale"
           >
-            <X className="w-4 h-4 text-foreground" />
+            <X className="w-4 h-4 text-foreground" strokeWidth={1.75} />
           </button>
         </div>
 
@@ -78,7 +81,7 @@ export default function FilterModal({
                 value={draft.query}
                 onChange={(e) => setDraft({ ...draft, query: e.target.value })}
                 placeholder="takım, turnuva, yayıncı…"
-                className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-secondary text-foreground text-body placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+                className="w-full pl-9 pr-3 py-2.5 rounded-2xl bg-secondary/60 text-foreground text-body placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
               />
             </div>
           </div>
@@ -118,9 +121,9 @@ export default function FilterModal({
                     <button
                       key={name}
                       onClick={() => toggleCompetition(name)}
-                      className={`px-3 py-1.5 rounded-full text-caption font-medium press-scale ${
+                      className={`px-3 py-1.5 rounded-full text-caption font-medium press-scale transition-all ${
                         active
-                          ? 'bg-foreground text-background'
+                          ? 'bg-primary text-primary-foreground shadow-sm'
                           : 'bg-secondary/60 text-muted-foreground'
                       }`}
                     >
@@ -144,13 +147,13 @@ export default function FilterModal({
           <div className="flex gap-3 pt-2">
             <button
               onClick={reset}
-              className="flex-1 py-3 rounded-xl bg-secondary text-secondary-foreground text-body font-medium press-scale"
+              className="flex-1 py-3 rounded-full bg-secondary/60 text-secondary-foreground text-body font-medium press-scale"
             >
               sıfırla
             </button>
             <button
               onClick={apply}
-              className="flex-1 py-3 rounded-xl bg-foreground text-background text-body font-semibold press-scale"
+              className="flex-1 py-3 rounded-full bg-primary text-primary-foreground text-body font-semibold press-scale shadow-md"
             >
               uygula
             </button>

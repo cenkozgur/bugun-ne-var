@@ -35,10 +35,10 @@ function Chip({ active, onClick, children }) {
   return (
     <button
       onClick={onClick}
-      className={`px-3.5 py-1.5 rounded-full text-caption font-medium whitespace-nowrap transition-colors press-scale ${
+      className={`px-4 py-1.5 rounded-full text-[13px] whitespace-nowrap transition-all press-scale ${
         active
-          ? 'bg-foreground text-background'
-          : 'bg-secondary/60 text-muted-foreground'
+          ? 'bg-primary text-primary-foreground font-semibold shadow-sm'
+          : 'bg-secondary/60 text-muted-foreground font-medium'
       }`}
     >
       {children}
