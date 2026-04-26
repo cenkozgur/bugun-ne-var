@@ -45,7 +45,6 @@ export default function SubscriptionManager({ mode = 'onboarding' }) {
   const [savingState, setSavingState] = useState('idle'); // idle | saving | saved
   const [activeCategory, setActiveCategory] = useState(null);
   const [activeCompetitionForTeams, setActiveCompetitionForTeams] = useState(null);
-  const saveTimerRef = useRef(null);
   // Mutex: only one persist() at a time. Without this, rapid toggles
   // produce overlapping persist runs that race each other on Base44 — a
   // late-finishing earlier run can re-delete a sub the newer run just
@@ -309,57 +308,52 @@ export default function SubscriptionManager({ mode = 'onboarding' }) {
     }
   }
 
-  // Manage mode: silent debounced auto-save after every change. Hook
-  // schedules a persist() 600ms after `selection` last changed. Cancel
-  // on next change so a flurry of toggles batches into one write pass.
+  // Mark dirty when selection changes (after hydration) — we use this
+  // to enable the manual save button and warn on tab close. NO auto-
+  // save: previous attempt wiped subscriptions due to a chain of
+  // edge cases (hydration dropouts looking like deletes, races during
+  // navigation). Explicit save is the safe primitive.
+  const [isDirty, setIsDirty] = useState(false);
+  const initialSelectionRef = useRef(null);
   useEffect(() => {
-    if (mode !== 'manage') return undefined;
-    if (!hydrated) return undefined;
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = setTimeout(async () => {
-      setSavingState('saving');
-      try {
-        const result = await persist();
-        setSavingState('saved');
-        if (result.created || result.deleted) {
-          toast({
-            title: 'kaydedildi',
-            description: `+${result.created} eklendi, ${result.deleted} kaldırıldı`,
-          });
-        }
-        setTimeout(() => setSavingState('idle'), 1800);
-      } catch {
-        setSavingState('idle');
+    if (!hydrated) return;
+    if (initialSelectionRef.current === null) {
+      // Snapshot the hydrated baseline so we can detect actual changes.
+      initialSelectionRef.current = selection;
+      return;
+    }
+    setIsDirty(true);
+  }, [selection, hydrated]);
+
+  async function manualSave() {
+    setBusy(true);
+    setSavingState('saving');
+    try {
+      const result = await persist();
+      setSavingState('saved');
+      setIsDirty(false);
+      // Refresh the baseline so subsequent edits start fresh.
+      initialSelectionRef.current = selection;
+      if (result.created || result.deleted) {
+        toast({
+          title: 'kaydedildi',
+          description: `+${result.created} eklendi, ${result.deleted} kaldırıldı`,
+        });
+      } else {
+        toast({ title: 'değişiklik yok' });
       }
-    }, 600);
-    return () => {
-      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    };
-
-  }, [selection, hydrated, mode]);
-
-  // Cleanup on unmount: cancel any pending debounce and let the
-  // serialised persist() finish naturally. Don't kick off a parallel
-  // persist here — selectionRef + the dirty-flag loop already ensure
-  // the in-flight pass picks up the latest state. Starting a new one
-  // would be the exact race that wiped subscriptions earlier.
-  useEffect(() => {
-    return () => {
-      if (mode !== 'manage') return;
-      if (saveTimerRef.current) {
-        clearTimeout(saveTimerRef.current);
-        saveTimerRef.current = null;
-        if (persistInFlightRef.current) {
-          persistDirtyRef.current = true;
-        } else {
-          // Nothing in flight — fire one final pass with the latest
-          // selection (selectionRef has it).
-          persist().catch(() => {});
-        }
-      }
-    };
-
-  }, []);
+      setTimeout(() => setSavingState('idle'), 1800);
+    } catch (err) {
+      setSavingState('idle');
+      toast({
+        title: 'kaydedilemedi',
+        description: String(err?.message || err),
+        variant: 'destructive',
+      });
+    } finally {
+      setBusy(false);
+    }
+  }
 
   if (catsLoading || compsLoading || entsLoading || subsLoading || !hydrated) {
     return (
@@ -447,54 +441,55 @@ export default function SubscriptionManager({ mode = 'onboarding' }) {
       </div>
 
       <div className="px-5 grid grid-cols-2 gap-3">
-        {categories.map((cat) => (
-          <CategoryTile
-            key={cat.id}
-            category={cat}
-            active={isCategoryActive(cat.id)}
-            subtitle={summary(cat.id)}
-            onClick={() => setActiveCategory(cat)}
-          />
-        ))}
+        {categories
+          // Hide categories that have nothing to subscribe to (no
+          // competitions in the DB). 'turnuva' is the prime example —
+          // it was a placeholder we never populated. Keeping it in the
+          // grid would just confuse users with an empty sheet.
+          .filter((cat) => (compsByCat[cat.id] || []).length > 0)
+          .map((cat) => (
+            <CategoryTile
+              key={cat.id}
+              category={cat}
+              active={isCategoryActive(cat.id)}
+              subtitle={summary(cat.id)}
+              onClick={() => setActiveCategory(cat)}
+            />
+          ))}
       </div>
 
-      {/* Onboarding has an explicit CTA. Manage mode auto-saves
-          silently; we only show a small status pill. */}
-      {isOnboarding ? (
+      {/* Sticky save CTA. Onboarding always shows it (must commit to
+          continue). Manage mode shows a "kaydet" button only when
+          there are unsaved changes — auto-save was removed because
+          a hydration drop-out chain wiped real subscriptions. Explicit
+          save is the safe primitive. */}
+      {(isOnboarding || isDirty) ? (
         <div className="fixed bottom-0 left-0 right-0 p-5 bg-gradient-to-t from-background via-background to-transparent">
           <button
-            onClick={finishOnboarding}
-            disabled={busy || !hasAny}
+            onClick={isOnboarding ? finishOnboarding : manualSave}
+            disabled={busy || (isOnboarding && !hasAny)}
             className={`w-full py-4 rounded-full text-body font-semibold flex items-center justify-center gap-2 press-scale transition-all ${
-              busy || !hasAny
+              busy || (isOnboarding && !hasAny)
                 ? 'bg-muted text-muted-foreground'
                 : 'bg-foreground text-background'
             }`}
           >
-            {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-            devam et
+            {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : (
+              isOnboarding ? null : <Save className="w-4 h-4" />
+            )}
+            {isOnboarding ? 'devam et' : 'kaydet'}
           </button>
         </div>
-      ) : (
-        // Manage mode: tiny status badge at the top — auto-save state.
-        // Slides in only when something is actively being persisted or
-        // was just persisted, so it doesn't fight the layout while idle.
-        savingState !== 'idle' ? (
-          <div className="fixed top-3 left-1/2 -translate-x-1/2 z-30 px-3 py-1.5 rounded-full bg-foreground text-background text-caption font-medium flex items-center gap-1.5 shadow-md">
-            {savingState === 'saving' ? (
-              <>
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                kaydediliyor…
-              </>
-            ) : (
-              <>
-                <Save className="w-3.5 h-3.5" />
-                kaydedildi
-              </>
-            )}
-          </div>
-        ) : null
-      )}
+      ) : null}
+
+      {/* Manage mode also shows a transient saved-pill at the top so
+          the user gets feedback that the explicit save succeeded. */}
+      {!isOnboarding && savingState === 'saved' ? (
+        <div className="fixed top-3 left-1/2 -translate-x-1/2 z-30 px-3 py-1.5 rounded-full bg-foreground text-background text-caption font-medium flex items-center gap-1.5 shadow-md">
+          <Save className="w-3.5 h-3.5" />
+          kaydedildi
+        </div>
+      ) : null}
 
       {/* Category sheet (level 2) */}
       <CategorySheet

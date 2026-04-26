@@ -653,6 +653,7 @@ export const STATIC_COMPETITIONS = [
   ['series:moto2:2026',  '🏍 Moto2 2026',             'motogp'],
   ['series:moto3:2026',  '🏍 Moto3 2026',             'motogp'],
   ['series:wsbk:2026',   '🏍 WorldSBK 2026',          'motogp'],
+  ['tv:turkiye',         '📺 Türkiye TV Etkinlikleri', 'tv'],
 ];
 
 // Standalone tournament + special-event builder. Tennis Slams etc.
@@ -817,24 +818,32 @@ export function buildTvEvents({ today, tomorrow }) {
     return d.toISOString();
   };
 
+  // Single 'Türkiye TV Etkinlikleri' competition under the TV category.
+  // Lets users subscribe at the umbrella level instead of per-show.
+  const TV_COMP_REF = 'tv:turkiye';
+  const TV_COMP_NAME = '📺 Türkiye TV Etkinlikleri';
   return [
     {
       title: 'Survivor All Star — Eleme Gecesi',
-      competition_name: 'Survivor All Star 2026',
+      competition_name: TV_COMP_NAME,
       start_time: at(today, 22, 0),
       broadcaster: 'TV8',
       is_live: false,
       _category_slug: 'tv',
       _source_id: 'tv:survivor:today',
+      _competition_ref: TV_COMP_REF,
+      _competition_name: TV_COMP_NAME,
     },
     {
       title: 'MasterChef Türkiye',
-      competition_name: 'MasterChef Türkiye 2026',
+      competition_name: TV_COMP_NAME,
       start_time: at(tomorrow, 20, 0),
       broadcaster: 'TV8',
       is_live: false,
       _category_slug: 'tv',
       _source_id: 'tv:masterchef:tomorrow',
+      _competition_ref: TV_COMP_REF,
+      _competition_name: TV_COMP_NAME,
     },
   ];
 }
