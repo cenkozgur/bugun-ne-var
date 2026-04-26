@@ -1,7 +1,8 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Loader2, Check } from 'lucide-react';
+import { Loader2, Check, Save } from 'lucide-react';
+import { useToast } from '@/components/ui/use-toast';
 import { base44 } from '@/api/base44Client';
 import { getCategoryColorClass } from '@/lib/categoryUtils';
 import BottomTabBar from '@/components/common/BottomTabBar';
@@ -39,9 +40,12 @@ import TeamSheet from '@/components/subscription/TeamSheet';
 export default function SubscriptionManager({ mode = 'onboarding' }) {
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const { toast } = useToast();
   const [busy, setBusy] = useState(false);
+  const [savingState, setSavingState] = useState('idle'); // idle | saving | saved
   const [activeCategory, setActiveCategory] = useState(null);
   const [activeCompetitionForTeams, setActiveCompetitionForTeams] = useState(null);
+  const saveTimerRef = useRef(null);
 
   const { data: categories = [], isLoading: catsLoading } = useQuery({
     queryKey: ['categories'],
@@ -160,68 +164,124 @@ export default function SubscriptionManager({ mode = 'onboarding' }) {
     return Boolean(cs && cs.size > 0);
   }
 
-  // --- save: diff against existing subs, only write what changed ---
-  async function save() {
+  // Build the desired UserSubscription rows from the in-memory selection.
+  function buildDesired(sel) {
+    const desired = new Set();
+    for (const catId of sel.wholeCategory) {
+      desired.add(`category:${catId}`);
+    }
+    for (const [catId, compIds] of Object.entries(sel.compIdsByCat)) {
+      if (sel.wholeCategory.has(catId)) continue;
+      for (const compId of compIds) {
+        const teamIds = sel.entityIdsByComp[compId];
+        if (teamIds && teamIds.size > 0) {
+          for (const tid of teamIds) desired.add(`entity:${tid}`);
+        } else {
+          desired.add(`competition:${compId}`);
+        }
+      }
+    }
+    return desired;
+  }
+
+  // Diff + apply. Sequential writes dodge Base44's rate limit.
+  async function persist() {
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const desired = buildDesired(selection);
+
+    // Always re-fetch existing instead of trusting the React-Query cache,
+    // because auto-save fires faster than the cache refreshes.
+    let current;
+    try {
+      current = await base44.entities.UserSubscription.list();
+    } catch {
+      current = existingSubs;
+    }
+    const existing = new Map();
+    for (const s of current) existing.set(`${s.target_type}:${s.target_id}`, s);
+
+    const toCreate = [];
+    const toDelete = [];
+    for (const key of desired) {
+      if (!existing.has(key)) {
+        const [type, id] = key.split(':');
+        toCreate.push({ target_type: type, target_id: id, preset: 'all' });
+      }
+    }
+    for (const [key, sub] of existing) {
+      if (!desired.has(key)) toDelete.push(sub);
+    }
+    if (toCreate.length === 0 && toDelete.length === 0) return { created: 0, deleted: 0 };
+
+    for (const s of toDelete) {
+      try {
+        await base44.entities.UserSubscription.delete(s.id);
+        await sleep(60);
+      } catch { /* ignore */ }
+    }
+    for (const sub of toCreate) {
+      try {
+        await base44.entities.UserSubscription.create(sub);
+        await sleep(80);
+      } catch { /* ignore */ }
+    }
+    qc.invalidateQueries({ queryKey: ['subscriptions'] });
+    return { created: toCreate.length, deleted: toDelete.length };
+  }
+
+  // Onboarding mode: save + navigate to home (one-shot).
+  async function finishOnboarding() {
     setBusy(true);
     try {
-      const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-
-      // Build the desired set of {target_type, target_id} keys.
-      const desired = new Set();
-      for (const catId of selection.wholeCategory) {
-        desired.add(`category:${catId}`);
-      }
-      for (const [catId, compIds] of Object.entries(selection.compIdsByCat)) {
-        if (selection.wholeCategory.has(catId)) continue; // category-level sub covers it
-        for (const compId of compIds) {
-          const teamIds = selection.entityIdsByComp[compId];
-          if (teamIds && teamIds.size > 0) {
-            for (const tid of teamIds) {
-              desired.add(`entity:${tid}`);
-            }
-          } else {
-            desired.add(`competition:${compId}`);
-          }
-        }
-      }
-
-      const existing = new Map(); // key → sub object
-      for (const s of existingSubs) {
-        existing.set(`${s.target_type}:${s.target_id}`, s);
-      }
-
-      const toCreate = [];
-      const toDelete = [];
-      for (const key of desired) {
-        if (!existing.has(key)) {
-          const [type, id] = key.split(':');
-          toCreate.push({ target_type: type, target_id: id, preset: 'all' });
-        }
-      }
-      for (const [key, sub] of existing) {
-        if (!desired.has(key)) toDelete.push(sub);
-      }
-
-      // Sequential to dodge Base44 rate limit (proven on big-roster /seed).
-      for (const s of toDelete) {
-        try {
-          await base44.entities.UserSubscription.delete(s.id);
-          await sleep(60);
-        } catch { /* ignore */ }
-      }
-      for (const sub of toCreate) {
-        try {
-          await base44.entities.UserSubscription.create(sub);
-          await sleep(80);
-        } catch { /* ignore */ }
-      }
-
-      qc.invalidateQueries({ queryKey: ['subscriptions'] });
+      await persist();
       navigate('/');
     } finally {
       setBusy(false);
     }
   }
+
+  // Manage mode: silent debounced auto-save after every change. Hook
+  // schedules a persist() 600ms after `selection` last changed. Cancel
+  // on next change so a flurry of toggles batches into one write pass.
+  useEffect(() => {
+    if (mode !== 'manage') return undefined;
+    if (!hydrated) return undefined;
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(async () => {
+      setSavingState('saving');
+      try {
+        const result = await persist();
+        setSavingState('saved');
+        if (result.created || result.deleted) {
+          toast({
+            title: 'kaydedildi',
+            description: `+${result.created} eklendi, ${result.deleted} kaldırıldı`,
+          });
+        }
+        setTimeout(() => setSavingState('idle'), 1800);
+      } catch {
+        setSavingState('idle');
+      }
+    }, 600);
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    };
+
+  }, [selection, hydrated, mode]);
+
+  // If the user navigates away (e.g. back to Bugün tab) before the
+  // 600ms debounce fires, immediately flush whatever's pending so we
+  // don't lose changes. Runs only on unmount.
+  useEffect(() => {
+    return () => {
+      if (mode === 'manage' && saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current);
+        // Fire-and-forget; can't await in cleanup.
+        persist().catch(() => {});
+      }
+    };
+
+  }, []);
 
   if (catsLoading || compsLoading || entsLoading || subsLoading || !hydrated) {
     return (
@@ -320,21 +380,43 @@ export default function SubscriptionManager({ mode = 'onboarding' }) {
         ))}
       </div>
 
-      {/* Sticky CTA */}
-      <div className="fixed bottom-0 left-0 right-0 p-5 bg-gradient-to-t from-background via-background to-transparent">
-        <button
-          onClick={save}
-          disabled={busy || (isOnboarding && !hasAny)}
-          className={`w-full py-4 rounded-full text-body font-semibold flex items-center justify-center gap-2 press-scale transition-all ${
-            busy || (isOnboarding && !hasAny)
-              ? 'bg-muted text-muted-foreground'
-              : 'bg-foreground text-background'
-          }`}
-        >
-          {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-          {isOnboarding ? 'devam et' : 'kaydet'}
-        </button>
-      </div>
+      {/* Onboarding has an explicit CTA. Manage mode auto-saves
+          silently; we only show a small status pill. */}
+      {isOnboarding ? (
+        <div className="fixed bottom-0 left-0 right-0 p-5 bg-gradient-to-t from-background via-background to-transparent">
+          <button
+            onClick={finishOnboarding}
+            disabled={busy || !hasAny}
+            className={`w-full py-4 rounded-full text-body font-semibold flex items-center justify-center gap-2 press-scale transition-all ${
+              busy || !hasAny
+                ? 'bg-muted text-muted-foreground'
+                : 'bg-foreground text-background'
+            }`}
+          >
+            {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+            devam et
+          </button>
+        </div>
+      ) : (
+        // Manage mode: tiny status badge at the top — auto-save state.
+        // Slides in only when something is actively being persisted or
+        // was just persisted, so it doesn't fight the layout while idle.
+        savingState !== 'idle' ? (
+          <div className="fixed top-3 left-1/2 -translate-x-1/2 z-30 px-3 py-1.5 rounded-full bg-foreground text-background text-caption font-medium flex items-center gap-1.5 shadow-md">
+            {savingState === 'saving' ? (
+              <>
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                kaydediliyor…
+              </>
+            ) : (
+              <>
+                <Save className="w-3.5 h-3.5" />
+                kaydedildi
+              </>
+            )}
+          </div>
+        ) : null
+      )}
 
       {/* Category sheet (level 2) */}
       <CategorySheet

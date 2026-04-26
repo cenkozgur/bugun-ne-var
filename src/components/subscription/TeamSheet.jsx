@@ -57,7 +57,9 @@ export default function TeamSheet({
           onClick={onBack || onClose}
           className="w-full py-3 rounded-xl bg-foreground text-background text-body font-semibold press-scale"
         >
-          tamam
+          {selectedTeamIds.size > 0
+            ? `${selectedTeamIds.size} takım seçili — kapat`
+            : 'tüm lig takip ediliyor — kapat'}
         </button>
       }
     >
@@ -77,13 +79,17 @@ export default function TeamSheet({
       {teams.length > 0 ? (
         <button
           onClick={toggleAll}
-          className="w-full px-4 py-3 rounded-xl bg-secondary/60 text-foreground flex items-center justify-between mb-2 press-scale"
+          className={`w-full px-4 py-3 rounded-xl border-2 flex items-center justify-between mb-3 press-scale transition-colors ${
+            allFollowed
+              ? 'border-primary bg-primary/10 text-foreground'
+              : 'border-dashed border-border bg-transparent text-muted-foreground'
+          }`}
         >
-          <span className="text-body font-medium">tüm ligi takip et</span>
-          <span className={`w-5 h-5 rounded-full flex items-center justify-center ${
-            allFollowed ? 'bg-foreground text-background' : 'border border-border'
-          }`}>
-            {allFollowed ? <Check className="w-3 h-3" /> : null}
+          <span className="text-body font-semibold">
+            {allFollowed ? '✓ Tüm Lig Takip Ediliyor' : 'Tüm Ligi Takip Et'}
+          </span>
+          <span className="text-caption opacity-70">
+            {teams.length} takım
           </span>
         </button>
       ) : null}

@@ -72,7 +72,7 @@ export default function CategorySheet({
           onClick={onClose}
           className="w-full py-3 rounded-xl bg-foreground text-background text-body font-semibold press-scale"
         >
-          tamam ({totalSubscribed} seçili)
+          {totalSubscribed > 0 ? `${totalSubscribed} lig seçili — kapat` : 'kapat'}
         </button>
       }
     >
@@ -90,17 +90,23 @@ export default function CategorySheet({
         </div>
       ) : null}
 
-      {/* Select all */}
+      {/* Select all — distinct visual from per-row rows so it doesn't
+          read as just another league. Outline style with bold "Tümünü Seç"
+          label, accent fill when active. */}
       {competitions.length > 0 ? (
         <button
           onClick={toggleAll}
-          className="w-full px-4 py-3 rounded-xl bg-secondary/60 text-foreground flex items-center justify-between mb-2 press-scale"
+          className={`w-full px-4 py-3 rounded-xl border-2 flex items-center justify-between mb-3 press-scale transition-colors ${
+            allChecked
+              ? 'border-primary bg-primary/10 text-foreground'
+              : 'border-dashed border-border bg-transparent text-muted-foreground'
+          }`}
         >
-          <span className="text-body font-medium">tümünü seç</span>
-          <span className={`w-5 h-5 rounded-full flex items-center justify-center ${
-            allChecked ? 'bg-foreground text-background' : 'border border-border'
-          }`}>
-            {allChecked ? <Check className="w-3 h-3" /> : null}
+          <span className="text-body font-semibold">
+            {allChecked ? '✓ Tümü Seçili' : 'Tümünü Seç'}
+          </span>
+          <span className="text-caption opacity-70">
+            {competitions.length} lig
           </span>
         </button>
       ) : null}
