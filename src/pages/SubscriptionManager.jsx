@@ -308,17 +308,18 @@ export default function SubscriptionManager({ mode = 'onboarding' }) {
     }
   }
 
-  // Mark dirty when selection changes (after hydration) — we use this
-  // to enable the manual save button and warn on tab close. NO auto-
-  // save: previous attempt wiped subscriptions due to a chain of
-  // edge cases (hydration dropouts looking like deletes, races during
-  // navigation). Explicit save is the safe primitive.
+  // Mark dirty when selection changes (after hydration). Manual save
+  // primitive — no debounce, no auto-save (auto-save wiped subs).
+  // To remove ambiguity ("did my toggle take?") we ALSO show the
+  // Kaydet button whenever the user has at least one item selected,
+  // even if it matches the hydrated baseline. Worst case the button
+  // does a no-op save and shows "değişiklik yok" toast — better than
+  // a silent UI where the user can't tell.
   const [isDirty, setIsDirty] = useState(false);
   const initialSelectionRef = useRef(null);
   useEffect(() => {
     if (!hydrated) return;
     if (initialSelectionRef.current === null) {
-      // Snapshot the hydrated baseline so we can detect actual changes.
       initialSelectionRef.current = selection;
       return;
     }
@@ -458,29 +459,33 @@ export default function SubscriptionManager({ mode = 'onboarding' }) {
           ))}
       </div>
 
-      {/* Sticky save CTA. Onboarding always shows it (must commit to
-          continue). Manage mode shows a "kaydet" button only when
-          there are unsaved changes — auto-save was removed because
-          a hydration drop-out chain wiped real subscriptions. Explicit
-          save is the safe primitive. */}
-      {(isOnboarding || isDirty) ? (
-        <div className="fixed bottom-0 left-0 right-0 p-5 bg-gradient-to-t from-background via-background to-transparent">
-          <button
-            onClick={isOnboarding ? finishOnboarding : manualSave}
-            disabled={busy || (isOnboarding && !hasAny)}
-            className={`w-full py-4 rounded-full text-body font-semibold flex items-center justify-center gap-2 press-scale transition-all ${
-              busy || (isOnboarding && !hasAny)
-                ? 'bg-muted text-muted-foreground'
-                : 'bg-foreground text-background'
-            }`}
-          >
-            {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : (
-              isOnboarding ? null : <Save className="w-4 h-4" />
-            )}
-            {isOnboarding ? 'devam et' : 'kaydet'}
-          </button>
-        </div>
-      ) : null}
+      {/* Sticky save CTA. Always rendered in both modes — earlier
+          attempt to hide it when !isDirty caused users to think their
+          toggle did nothing. Manage mode now always shows 'Kaydet'
+          (a no-op save just shows "değişiklik yok"). Onboarding hides
+          it only when nothing is selected at all. */}
+      <div className="fixed bottom-0 left-0 right-0 p-5 bg-gradient-to-t from-background via-background to-transparent">
+        <button
+          onClick={isOnboarding ? finishOnboarding : manualSave}
+          disabled={busy || (isOnboarding && !hasAny)}
+          className={`w-full py-4 rounded-full text-body font-semibold flex items-center justify-center gap-2 press-scale transition-all ${
+            busy || (isOnboarding && !hasAny)
+              ? 'bg-muted text-muted-foreground'
+              : isDirty || isOnboarding
+                ? 'bg-foreground text-background'
+                : 'bg-foreground/80 text-background'
+          }`}
+        >
+          {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : (
+            isOnboarding ? null : <Save className="w-4 h-4" />
+          )}
+          {isOnboarding
+            ? 'devam et'
+            : isDirty
+              ? 'kaydet'
+              : 'kaydedildi'}
+        </button>
+      </div>
 
       {/* Manage mode also shows a transient saved-pill at the top so
           the user gets feedback that the explicit save succeeded. */}
