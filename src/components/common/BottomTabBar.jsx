@@ -13,8 +13,15 @@ export default function BottomTabBar() {
   const location = useLocation();
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-card/95 backdrop-blur-lg border-t border-border">
-      <div className="max-w-md mx-auto flex items-center justify-around px-2 pb-[env(safe-area-inset-bottom)] h-16">
+    <nav
+      className="fixed bottom-0 left-0 right-0 z-50 bg-card/95 backdrop-blur-lg border-t border-border"
+      // iOS PWA: respect home-indicator safe area. Inline style is more
+      // reliable across mobile Safari than the Tailwind arbitrary
+      // utility, which sometimes drops the env() call in production
+      // builds.
+      style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+    >
+      <div className="max-w-md mx-auto flex items-center justify-around px-2 h-16">
         {tabs.map((tab) => {
           const isActive = location.pathname === tab.path;
           const Icon = tab.icon;

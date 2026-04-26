@@ -5,7 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#FFF8EC" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <!-- 'default' draws an opaque white status bar on iOS PWA, which
+         clashes with the dark/cream theme. 'black-translucent' lets
+         the page background show through under the status bar so the
+         app feels edge-to-edge. -->
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Bugün Ne Var" />
     <title>Bugün Ne Var</title>
     <meta name="description" content="Günlük ajanda — futbol, F1, MotoGP, TV etkinlikleri ve daha fazlası" />
   </head>

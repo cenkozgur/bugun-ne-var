@@ -428,8 +428,13 @@ export default function SubscriptionManager({ mode = 'onboarding' }) {
     selection.wholeCategory.size > 0 ||
     Object.values(selection.compIdsByCat).some((s) => s.size > 0);
 
+  // Bottom padding: in manage mode we sit above the BottomTabBar
+  // (h-16 = 64px) PLUS the sticky save button (~80px). Onboarding has
+  // no tab bar, so just the save button worth of clearance.
+  const bottomPadClass = isOnboarding ? 'pb-32' : 'pb-44';
+
   return (
-    <div className="min-h-screen bg-background pb-32">
+    <div className={`min-h-screen bg-background ${bottomPadClass}`}>
       <div className="px-5 pt-14 pb-4">
         <h1 className="text-display font-bold text-foreground leading-tight">
           {isOnboarding ? 'neleri takip ediyorsun?' : 'takip ettiklerin'}
@@ -459,21 +464,30 @@ export default function SubscriptionManager({ mode = 'onboarding' }) {
           ))}
       </div>
 
-      {/* Sticky save CTA. Always rendered in both modes — earlier
-          attempt to hide it when !isDirty caused users to think their
-          toggle did nothing. Manage mode now always shows 'Kaydet'
-          (a no-op save just shows "değişiklik yok"). Onboarding hides
-          it only when nothing is selected at all. */}
-      <div className="fixed bottom-0 left-0 right-0 p-5 bg-gradient-to-t from-background via-background to-transparent">
+      {/* Sticky save CTA. Manage mode sits ABOVE the BottomTabBar
+          (which is fixed bottom: 0 + safe-area). Onboarding sits at
+          the actual bottom because there's no tab bar.
+          - z-40 keeps the CTA below the bottom-sheet scrim (z-50) so
+            opening a sheet visually covers it instead of layering on.
+          - bottom: env() respects iPhone home-indicator. Manage mode
+            offsets by tab-bar height (64px) on top of that. */}
+      <div
+        className="fixed left-0 right-0 z-40 px-5 pt-3 pb-3 bg-gradient-to-t from-background via-background to-transparent"
+        style={{
+          bottom: isOnboarding
+            ? 'env(safe-area-inset-bottom, 0px)'
+            : 'calc(64px + env(safe-area-inset-bottom, 0px))',
+        }}
+      >
         <button
           onClick={isOnboarding ? finishOnboarding : manualSave}
           disabled={busy || (isOnboarding && !hasAny)}
-          className={`w-full py-4 rounded-full text-body font-semibold flex items-center justify-center gap-2 press-scale transition-all ${
+          className={`w-full py-4 rounded-full text-body font-semibold flex items-center justify-center gap-2 press-scale transition-all shadow-lg ${
             busy || (isOnboarding && !hasAny)
               ? 'bg-muted text-muted-foreground'
               : isDirty || isOnboarding
                 ? 'bg-foreground text-background'
-                : 'bg-foreground/80 text-background'
+                : 'bg-foreground/70 text-background'
           }`}
         >
           {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : (
@@ -483,7 +497,7 @@ export default function SubscriptionManager({ mode = 'onboarding' }) {
             ? 'devam et'
             : isDirty
               ? 'kaydet'
-              : 'kaydedildi'}
+              : 'kaydedildi ✓'}
         </button>
       </div>
 
