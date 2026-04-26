@@ -285,7 +285,11 @@ export async function fetchUpcomingF1Sessions() {
 
   const venue = race.Circuit?.circuitName || '';
   const grandPrix = race.raceName || 'Grand Prix';
-  const compName = `Formula 1 2026 — ${grandPrix}`;
+  // Single season-level competition so onboarding step 2 reads as
+  // "🏎 Formula 1" and the user can subscribe to the championship as a
+  // whole (not race-by-race).
+  const F1_COMP_REF = 'series:f1:2026';
+  const F1_COMP_NAME = '🏎 Formula 1 2026';
   const broadcaster = 'S Sport / S Sport 2';
 
   const sessions = [];
@@ -299,13 +303,15 @@ export async function fetchUpcomingF1Sessions() {
     if (!Number.isFinite(t)) return;
     sessions.push({
       title: `${grandPrix} — ${label}`,
-      competition_name: compName,
+      competition_name: F1_COMP_NAME,
       start_time: new Date(iso).toISOString(),
       broadcaster,
       venue,
       is_live: false,
       _category_slug: 'f1',
       _source_id: `f1:${race.season}:${race.round}:${sessionKey}`,
+      _competition_ref: F1_COMP_REF,
+      _competition_name: F1_COMP_NAME,
     });
   };
 
@@ -642,6 +648,11 @@ export const STATIC_COMPETITIONS = [
   ['league:bsl',         '🇹🇷 Basketbol Süper Ligi',  'nba'],
   ['league:tr_volleyball','🇹🇷 Voleybol (Sultanlar + Efeler)', 'voleybol'],
   ['tour:atp_wta',       '🎾 ATP / WTA Tour',         'tenis'],
+  ['series:f1:2026',     '🏎 Formula 1 2026',         'f1'],
+  ['series:motogp:2026', '🏍 MotoGP 2026',            'motogp'],
+  ['series:moto2:2026',  '🏍 Moto2 2026',             'motogp'],
+  ['series:moto3:2026',  '🏍 Moto3 2026',             'motogp'],
+  ['series:wsbk:2026',   '🏍 WorldSBK 2026',          'motogp'],
 ];
 
 // Standalone tournament + special-event builder. Tennis Slams etc.

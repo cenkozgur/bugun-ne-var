@@ -46,6 +46,18 @@ export default function SubscriptionManager({ mode = 'onboarding' }) {
   const [activeCategory, setActiveCategory] = useState(null);
   const [activeCompetitionForTeams, setActiveCompetitionForTeams] = useState(null);
   const saveTimerRef = useRef(null);
+  // Mutex: only one persist() at a time. Without this, rapid toggles
+  // produce overlapping persist runs that race each other on Base44 — a
+  // late-finishing earlier run can re-delete a sub the newer run just
+  // created. Observed 2026-04-26: home would flash matches then lose
+  // them as the older persist completed.
+  const persistInFlightRef = useRef(null);
+  // Marker so the in-flight persist knows it should re-run with fresh
+  // state once it finishes (instead of dropping the latest change).
+  const persistDirtyRef = useRef(false);
+  // Hold the latest selection in a ref so persist() always reads the
+  // newest state, even if a stale React closure scheduled it.
+  const selectionRef = useRef(null);
 
   const { data: categories = [], isLoading: catsLoading } = useQuery({
     queryKey: ['categories'],
@@ -92,10 +104,14 @@ export default function SubscriptionManager({ mode = 'onboarding' }) {
   }, [entities]);
 
   // Hydrate `selection` from existing subscriptions on first load.
+  // orphanSubs holds entity subs whose entity has no resolvable parent
+  // competition (entity row missing or has no competition_ref). We
+  // preserve them as-is across save so legacy data isn't quietly wiped.
   const [selection, setSelection] = useState({
     wholeCategory: new Set(),
     compIdsByCat: {},
     entityIdsByComp: {},
+    orphanSubs: new Set(), // raw "type:id" keys we couldn't bucket but must keep
   });
   const [hydrated, setHydrated] = useState(false);
 
@@ -106,35 +122,53 @@ export default function SubscriptionManager({ mode = 'onboarding' }) {
     const wholeCategory = new Set();
     const compIdsByCat = {};
     const entityIdsByComp = {};
+    const orphanSubs = new Set();
 
     const compById = Object.fromEntries(competitions.map((c) => [c.id, c]));
     const entById = Object.fromEntries(entities.map((e) => [e.id, e]));
 
     for (const sub of existingSubs) {
       if (!sub.target_id) continue;
+      const key = `${sub.target_type}:${sub.target_id}`;
       if (sub.target_type === 'category') {
         wholeCategory.add(sub.target_id);
       } else if (sub.target_type === 'competition') {
         const c = compById[sub.target_id];
-        if (!c) continue;
-        (compIdsByCat[c.category_id] ||= new Set()).add(c.id);
+        if (c) {
+          (compIdsByCat[c.category_id] ||= new Set()).add(c.id);
+        } else {
+          // Competition row no longer exists in our cache (deleted or
+          // not yet loaded). Keep the sub as orphan so it isn't wiped.
+          orphanSubs.add(key);
+        }
       } else if (sub.target_type === 'entity') {
         const e = entById[sub.target_id];
-        if (!e) continue;
-        // Each entity sub implies its parent competition is followed,
-        // and team-level narrowing is recorded for that comp.
+        if (!e) {
+          orphanSubs.add(key);
+          continue;
+        }
         if (e.competition_ref) {
-          // Resolve comp by external_ref to get the comp id
           const comp = competitions.find((c) => c.external_ref === e.competition_ref);
           if (comp) {
             (compIdsByCat[comp.category_id] ||= new Set()).add(comp.id);
             (entityIdsByComp[comp.id] ||= new Set()).add(e.id);
+          } else {
+            // Entity has competition_ref but no Competition row matches.
+            // Preserve as orphan so legacy data survives.
+            orphanSubs.add(key);
           }
+        } else {
+          // Entity exists but has no competition_ref (predates schema).
+          // Preserve as orphan rather than silently dropping the sub.
+          orphanSubs.add(key);
         }
+      } else {
+        // Unknown target_type — preserve.
+        orphanSubs.add(key);
       }
     }
 
-    setSelection({ wholeCategory, compIdsByCat, entityIdsByComp });
+    setSelection({ wholeCategory, compIdsByCat, entityIdsByComp, orphanSubs });
     setHydrated(true);
   }, [hydrated, subsLoading, compsLoading, entsLoading, catsLoading, existingSubs, competitions, entities]);
 
@@ -181,16 +215,25 @@ export default function SubscriptionManager({ mode = 'onboarding' }) {
         }
       }
     }
+    // Carry orphan subs verbatim so save doesn't silently delete subs
+    // we couldn't categorize at hydration time.
+    if (sel.orphanSubs) {
+      for (const k of sel.orphanSubs) desired.add(k);
+    }
     return desired;
   }
 
-  // Diff + apply. Sequential writes dodge Base44's rate limit.
-  async function persist() {
-    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-    const desired = buildDesired(selection);
+  // Keep selectionRef synced so a long-running persist() always sees
+  // the latest state when it re-loops.
+  useEffect(() => {
+    selectionRef.current = selection;
+  }, [selection]);
 
-    // Always re-fetch existing instead of trusting the React-Query cache,
-    // because auto-save fires faster than the cache refreshes.
+  // Internal: do one diff+apply pass against the current selectionRef.
+  async function _doOnePersistPass() {
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const desired = buildDesired(selectionRef.current);
+
     let current;
     try {
       current = await base44.entities.UserSubscription.list();
@@ -227,6 +270,32 @@ export default function SubscriptionManager({ mode = 'onboarding' }) {
     }
     qc.invalidateQueries({ queryKey: ['subscriptions'] });
     return { created: toCreate.length, deleted: toDelete.length };
+  }
+
+  // Public persist() — serialised. If a persist is in flight, mark
+  // dirty and wait; the in-flight pass will re-run for us. This
+  // collapses bursts of changes into at most two passes (one in
+  // flight, one queued).
+  async function persist() {
+    if (persistInFlightRef.current) {
+      persistDirtyRef.current = true;
+      return persistInFlightRef.current;
+    }
+    persistInFlightRef.current = (async () => {
+      let totalCreated = 0;
+      let totalDeleted = 0;
+      do {
+        persistDirtyRef.current = false;
+        try {
+          const r = await _doOnePersistPass();
+          totalCreated += r.created;
+          totalDeleted += r.deleted;
+        } catch { /* swallow; next change will retry */ }
+      } while (persistDirtyRef.current);
+      persistInFlightRef.current = null;
+      return { created: totalCreated, deleted: totalDeleted };
+    })();
+    return persistInFlightRef.current;
   }
 
   // Onboarding mode: save + navigate to home (one-shot).
@@ -269,15 +338,24 @@ export default function SubscriptionManager({ mode = 'onboarding' }) {
 
   }, [selection, hydrated, mode]);
 
-  // If the user navigates away (e.g. back to Bugün tab) before the
-  // 600ms debounce fires, immediately flush whatever's pending so we
-  // don't lose changes. Runs only on unmount.
+  // Cleanup on unmount: cancel any pending debounce and let the
+  // serialised persist() finish naturally. Don't kick off a parallel
+  // persist here — selectionRef + the dirty-flag loop already ensure
+  // the in-flight pass picks up the latest state. Starting a new one
+  // would be the exact race that wiped subscriptions earlier.
   useEffect(() => {
     return () => {
-      if (mode === 'manage' && saveTimerRef.current) {
+      if (mode !== 'manage') return;
+      if (saveTimerRef.current) {
         clearTimeout(saveTimerRef.current);
-        // Fire-and-forget; can't await in cleanup.
-        persist().catch(() => {});
+        saveTimerRef.current = null;
+        if (persistInFlightRef.current) {
+          persistDirtyRef.current = true;
+        } else {
+          // Nothing in flight — fire one final pass with the latest
+          // selection (selectionRef has it).
+          persist().catch(() => {});
+        }
       }
     };
 
