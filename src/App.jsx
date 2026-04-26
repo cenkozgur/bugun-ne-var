@@ -6,11 +6,10 @@ import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import Home from '@/pages/Home';
-import Onboarding from '@/pages/Onboarding';
+import SubscriptionManager from '@/pages/SubscriptionManager';
 import EventDetail from '@/pages/EventDetail';
 import Settings from '@/pages/Settings';
 import Yakinda from '@/pages/Yakinda';
-import Kesfet from '@/pages/Kesfet';
 import Seed from '@/pages/Seed';
 import { useTheme } from '@/lib/useTheme';
 
@@ -42,11 +41,11 @@ const AuthenticatedApp = () => {
   return (
     <Routes>
       <Route path="/" element={<Home />} />
-      <Route path="/onboarding" element={<Onboarding />} />
+      <Route path="/onboarding" element={<SubscriptionManager mode="onboarding" />} />
+      <Route path="/kesfet" element={<SubscriptionManager mode="manage" />} />
       <Route path="/event/:id" element={<EventDetail />} />
       <Route path="/ayarlar" element={<Settings />} />
       <Route path="/yakinda" element={<Yakinda />} />
-      <Route path="/kesfet" element={<Kesfet />} />
       <Route path="/seed" element={<Seed />} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>
