@@ -31,15 +31,17 @@ const COLOR_TO_CLASS = {
 const UNSPLASH_PARAMS = 'auto=format&fit=crop&w=800&q=70';
 
 const SLUG_TO_HERO_IMAGE = {
-  // Stadium at dusk, deep green pitch, floodlights. Reads "football night".
+  // Soccer ball on lush grass — keeping the previous default until the
+  // user picks a non-premium replacement.
   futbol:   `https://images.unsplash.com/photo-1522778119026-d647f0596c20?${UNSPLASH_PARAMS}`,
-  // F1 car cornering, motion blur, rich red.
-  f1:       `https://images.unsplash.com/photo-1504707748692-419802cf939d?${UNSPLASH_PARAMS}`,
-  // Sport bike leaning into a corner, knee down.
-  motogp:   `https://images.unsplash.com/photo-1568772585407-9361f9bf3a87?${UNSPLASH_PARAMS}`,
-  // Basketball hoop and ball, indoor wood floor.
-  nba:      `https://images.unsplash.com/photo-1546519638-68e109498ffc?${UNSPLASH_PARAMS}`,
-  // Tennis ball on red clay, shallow depth.
+  // Red Bull F1 car on track (user-picked, MyxG49FpjIM).
+  f1:       `https://images.unsplash.com/photo-1673250667524-8566063b79e6?${UNSPLASH_PARAMS}`,
+  // Motorcycle close-up in the dark (user-picked, dkkDYdBwp40).
+  motogp:   `https://images.unsplash.com/photo-1698170610436-2501ecffc203?${UNSPLASH_PARAMS}`,
+  // Basketball going through the hoop (user-picked, YF9YeTmhy6o).
+  nba:      `https://images.unsplash.com/photo-1728637690621-ad046564a657?${UNSPLASH_PARAMS}`,
+  // Tennis ball + racket on court — keeping the previous default until
+  // the user picks a non-premium replacement.
   tenis:    `https://images.unsplash.com/photo-1622279457486-62dcc4a431d6?${UNSPLASH_PARAMS}`,
   // Volleyball net + ball mid-flight, indoor.
   voleybol: `https://images.unsplash.com/photo-1592656094267-764a45160876?${UNSPLASH_PARAMS}`,
