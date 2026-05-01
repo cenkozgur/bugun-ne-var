@@ -20,35 +20,36 @@ const COLOR_TO_CLASS = {
   '#C89B2A': 'cat-turnuva',
 };
 
-// Hero photos for category tiles. Picked from Unsplash for license-clean,
-// iconic, dark-friendly compositions. The query params crop+compress server-
-// side so we ship only ~30KB per image to mobile. Override per-Category in
-// Base44 by populating Category.hero_image_url — that wins over this map.
+// Hero photos for category tiles. We mix two sources because Unsplash has
+// quietly migrated most of its high-quality sports content into Unsplash+
+// (paid), and Pexels has no premium tier — its catalog is fully free.
 //
-// All photos: Unsplash License (free for commercial use, no attribution
-// required). Original photographer credits live in CATEGORY_HERO_CREDITS
-// below in case we want to surface them later.
+// Per-Category override: populate Category.hero_image_url in Base44 to win
+// over this map without a code change.
+//
+// Both Unsplash License and Pexels License: free for commercial use, no
+// attribution required.
 const UNSPLASH_PARAMS = 'auto=format&fit=crop&w=800&q=70';
+// Pexels equivalent: ?auto=compress&cs=tinysrgb&w=800 keeps payload small.
+const PEXELS_PARAMS = 'auto=compress&cs=tinysrgb&w=800';
 
 const SLUG_TO_HERO_IMAGE = {
-  // Soccer ball on lush grass — keeping the previous default until the
-  // user picks a non-premium replacement.
+  // Soccer ball on lush grass.
   futbol:   `https://images.unsplash.com/photo-1522778119026-d647f0596c20?${UNSPLASH_PARAMS}`,
-  // Red Bull F1 car on track (user-picked, MyxG49FpjIM).
+  // Red Bull F1 car on track (Unsplash MyxG49FpjIM, user-picked).
   f1:       `https://images.unsplash.com/photo-1673250667524-8566063b79e6?${UNSPLASH_PARAMS}`,
-  // Motorcycle close-up in the dark (user-picked, dkkDYdBwp40).
+  // Motorcycle close-up in the dark (Unsplash dkkDYdBwp40, user-picked).
   motogp:   `https://images.unsplash.com/photo-1698170610436-2501ecffc203?${UNSPLASH_PARAMS}`,
-  // Basketball going through the hoop (user-picked, YF9YeTmhy6o).
+  // Basketball going through the hoop (Unsplash YF9YeTmhy6o, user-picked).
   nba:      `https://images.unsplash.com/photo-1728637690621-ad046564a657?${UNSPLASH_PARAMS}`,
-  // Tennis ball + racket on court — keeping the previous default until
-  // the user picks a non-premium replacement.
-  tenis:    `https://images.unsplash.com/photo-1622279457486-62dcc4a431d6?${UNSPLASH_PARAMS}`,
-  // Volleyball net + ball mid-flight, indoor.
-  voleybol: `https://images.unsplash.com/photo-1592656094267-764a45160876?${UNSPLASH_PARAMS}`,
+  // Man playing tennis (Pexels 10612276, user-picked).
+  tenis:    `https://images.pexels.com/photos/10612276/pexels-photo-10612276.jpeg?${PEXELS_PARAMS}`,
+  // Women playing volleyball (Pexels 25824200, user-picked).
+  voleybol: `https://images.pexels.com/photos/25824200/pexels-photo-25824200.jpeg?${PEXELS_PARAMS}`,
   // Vintage TV / studio glow, evokes broadcast.
   tv:       `https://images.unsplash.com/photo-1593359677879-a4bb92f829d1?${UNSPLASH_PARAMS}`,
-  // Trophy on a podium under stage lights.
-  turnuva:  `https://images.unsplash.com/photo-1567427017947-545c5f8d16ad?${UNSPLASH_PARAMS}`,
+  // Group of golden trophies (Unsplash u715bKFZBvA, user-picked).
+  turnuva:  `https://images.unsplash.com/photo-1665680674724-3a3b3368e036?${UNSPLASH_PARAMS}`,
 };
 
 export function getCategoryColorClass(category) {
