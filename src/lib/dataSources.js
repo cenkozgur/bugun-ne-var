@@ -290,7 +290,10 @@ export async function fetchUpcomingF1Sessions() {
   // whole (not race-by-race).
   const F1_COMP_REF = 'series:f1:2026';
   const F1_COMP_NAME = '🏎 Formula 1 2026';
-  const broadcaster = 'S Sport / S Sport 2';
+  // beIN Sports has the exclusive 10-year (2024–2033) F1 broadcast deal
+  // for Türkiye + MENA. The race itself is on beIN Sports 4; practice
+  // and qualifying often share the channel too.
+  const broadcaster = 'beIN Sports 4';
 
   const sessions = [];
   // sessionKey is an ASCII identifier (FP1, SprintQuali, Race) used in
