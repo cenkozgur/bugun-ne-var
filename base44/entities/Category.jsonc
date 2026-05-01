@@ -21,6 +21,10 @@
     "subtitle": {
       "type": "string",
       "description": "Short description shown on tile"
+    },
+    "hero_image_url": {
+      "type": "string",
+      "description": "Optional override for the tile background photo. Leave empty to use the built-in default. Supports any HTTPS image URL (Unsplash, custom CDN, base44 file storage)."
     }
   },
   "required": [

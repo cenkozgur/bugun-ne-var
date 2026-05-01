@@ -6,6 +6,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { base44 } from '@/api/base44Client';
 import CategorySheet from '@/components/subscription/CategorySheet';
 import TeamSheet from '@/components/subscription/TeamSheet';
+import { getCategoryHeroImage } from '@/lib/categoryUtils';
 
 /**
  * Single source of truth for subscription editing — used by:
@@ -572,7 +573,62 @@ const CATEGORY_GRADIENTS = {
 };
 
 function CategoryTile({ category, active, subtitle, onClick }) {
+  const heroImage = getCategoryHeroImage(category);
   const gradient = CATEGORY_GRADIENTS[category.slug] || 'from-slate-400 to-slate-500';
+
+  // Photo-background variant: real-life sports image, dark gradient overlay
+  // for legibility, white text. Falls back to the legacy emoji+gradient
+  // tile if the slug has no hero image (or the URL fails to load — handled
+  // via onError below).
+  if (heroImage) {
+    return (
+      <button
+        onClick={onClick}
+        className={`relative w-full aspect-[4/3] rounded-[20px] text-left overflow-hidden transition-all press-scale card-elevated ${
+          active
+            ? 'ring-[2px] ring-primary shadow-[0_0_0_4px_hsl(var(--primary)/0.18)]'
+            : ''
+        }`}
+        // Inline style on the button so we can apply background-image
+        // without re-rendering an extra <img>. This also preserves layout
+        // even if the image hasn't decoded yet — solid color shows first.
+        style={{
+          backgroundColor: category.color || '#334155',
+          backgroundImage: `url(${heroImage})`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+        }}
+      >
+        {/* Dark gradient overlay: stronger at the bottom where the text
+            sits, lighter at the top so the photo still reads. */}
+        <div
+          aria-hidden
+          className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/45 to-black/15"
+        />
+
+        {/* Selected check — solid pill so it pops against the photo. */}
+        {active ? (
+          <div className="absolute top-2.5 right-2.5 w-7 h-7 rounded-full bg-primary flex items-center justify-center shadow-md">
+            <Check className="w-4 h-4 text-primary-foreground" strokeWidth={2.5} />
+          </div>
+        ) : null}
+
+        {/* Foreground content sits at the bottom-left, like a movie poster. */}
+        <div className="absolute inset-x-0 bottom-0 p-3.5">
+          <h3 className="text-[16px] font-bold text-white leading-tight tracking-tight drop-shadow">
+            {category.name}
+          </h3>
+          <p className="text-[12px] text-white/75 mt-0.5 line-clamp-1 font-medium drop-shadow">
+            {subtitle}
+          </p>
+        </div>
+      </button>
+    );
+  }
+
+  // Legacy fallback: emoji on a colored gradient. Used if hero image is
+  // missing — keeps the grid usable for any future category we add before
+  // wiring an image for it.
   return (
     <button
       onClick={onClick}
