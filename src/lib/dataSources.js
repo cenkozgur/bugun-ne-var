@@ -29,6 +29,10 @@ const LEAGUE_LABELS = {
 
 // Best-guess Türkiye broadcaster per league. Real EPG data is messy —
 // these are the "almost always" channels for the major events.
+//
+// NOTE: the F1 key here is France's Ligue 1 (FBref/api-football league
+// code), NOT Formula 1 — Formula 1 is handled in SERIES_BROADCASTERS
+// below. Don't conflate the two when fixing broadcaster regressions.
 const LEAGUE_BROADCASTERS = {
   T1: 'beIN Sports HD 1',
   E0: 'S Sport / S Sport Plus',
@@ -39,6 +43,33 @@ const LEAGUE_BROADCASTERS = {
   F1: 'S Sport',
   N1: 'S Sport',
   P1: 'S Sport',
+};
+
+// ─────────────────────────────────────────────────────────────────────
+// Single source of truth for non-football broadcaster assignments.
+//
+// Whenever a Türkiye broadcasting deal changes, fix it HERE — not in
+// half a dozen scattered places throughout the file. This keeps reality
+// in one map; downstream builders (buildMotoGpEvents, fetchUpcomingF1
+// Sessions, WSBK, tournaments) all read from this object instead of
+// hard-coding strings.
+//
+// History note (matters for audit + reverting if a fix is wrong):
+//   2026-04-25 F1 corrected from "S Sport / S Sport 2" to "beIN Sports 4"
+//   after we shipped wrong defaults. beIN holds the exclusive 10-year
+//   (2024–2033) F1 deal for Türkiye + MENA — S Sport doesn't air F1.
+// ─────────────────────────────────────────────────────────────────────
+const SERIES_BROADCASTERS = {
+  // Formula 1 — beIN Sports, exclusive Türkiye 2024–2033.
+  formula1: 'beIN Sports 4',
+  // MotoGP / Moto2 / Moto3 — Saran Media via S Sport.
+  motogp:   'S Sport 2',
+  moto2:    'S Sport 2',
+  moto3:    'S Sport 2',
+  // World Superbike — Saran Media (S Sport rotation).
+  wsbk:     'S Sport',
+  // Tennis Grand Slams — see STATIC_TOURNAMENTS for per-event override.
+  tennis:   'S Sport',
 };
 
 // Backend stores team names ASCII-normalized for slug stability
@@ -290,10 +321,9 @@ export async function fetchUpcomingF1Sessions() {
   // whole (not race-by-race).
   const F1_COMP_REF = 'series:f1:2026';
   const F1_COMP_NAME = '🏎 Formula 1 2026';
-  // beIN Sports has the exclusive 10-year (2024–2033) F1 broadcast deal
-  // for Türkiye + MENA. The race itself is on beIN Sports 4; practice
-  // and qualifying often share the channel too.
-  const broadcaster = 'beIN Sports 4';
+  // SERIES_BROADCASTERS holds the canonical channel — fix once there
+  // if rights change, every session inherits the new value.
+  const broadcaster = SERIES_BROADCASTERS.formula1;
 
   const sessions = [];
   // sessionKey is an ASCII identifier (FP1, SprintQuali, Race) used in
@@ -721,11 +751,12 @@ const MOTOGP_2026 = [
 ];
 
 // Three classes share the same race weekend. Times are typical broadcast
-// slots in TR (UTC+3); some flyaways shift earlier.
+// slots in TR (UTC+3); some flyaways shift earlier. Broadcasters come
+// from SERIES_BROADCASTERS so a rights change is a one-line fix.
 const MOTO_CLASSES = [
-  { slug: 'motogp', label: 'MotoGP',  hour: 14, broadcaster: 'S Sport 2' },
-  { slug: 'moto2',  label: 'Moto2',   hour: 12, broadcaster: 'S Sport 2' },
-  { slug: 'moto3',  label: 'Moto3',   hour: 11, broadcaster: 'S Sport 2' },
+  { slug: 'motogp', label: 'MotoGP',  hour: 14, broadcaster: SERIES_BROADCASTERS.motogp },
+  { slug: 'moto2',  label: 'Moto2',   hour: 12, broadcaster: SERIES_BROADCASTERS.moto2 },
+  { slug: 'moto3',  label: 'Moto3',   hour: 11, broadcaster: SERIES_BROADCASTERS.moto3 },
 ];
 
 /**
@@ -798,7 +829,7 @@ export function buildWsbkEvents() {
         title: `${roundName} — ${s.label}`,
         competition_name: 'WorldSBK 2026',
         start_time: new Date(t).toISOString(),
-        broadcaster: 'S Sport',
+        broadcaster: SERIES_BROADCASTERS.wsbk,
         venue: `${circuit}, ${country}`,
         is_live: false,
         _category_slug: 'motogp', // share the moto category — same audience
