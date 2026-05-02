@@ -1,0 +1,36 @@
+name: Daily data sync
+
+# Runs scripts/sync.mjs on a schedule. The script pulls the next ~7 days
+# of fixtures from football-predictor + Jolpica F1 + the static MotoGP /
+# WSBK / tournaments / TV calendars and writes them to Base44 via REST.
+# Replaces the manual /seed page workflow.
+
+on:
+  schedule:
+    # GitHub Actions cron is UTC. 03:00 Europe/Istanbul ≈ 00:00 UTC
+    # in summer (UTC+3), so this runs early morning local time, well
+    # before the day's first events go live. Re-run a second time at
+    # midday so an event added at noon doesn't disappear from the app
+    # until the next morning.
+    - cron: '0 0 * * *'   # 03:00 Europe/Istanbul (summer)
+    - cron: '0 9 * * *'   # 12:00 Europe/Istanbul (summer)
+  # Allow manual triggering from the Actions tab — handy for the first
+  # run after deploy, or whenever you want a hot refresh.
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Run sync
+        env:
+          BASE44_API_KEY: ${{ secrets.BASE44_API_KEY }}
+        # No npm install — sync.mjs uses only Node 20 globals (fetch,
+        # URL, etc.) and imports a single .js file from src/lib by
+        # relative path. Keeps the job fast (~10s warm).
+        run: node scripts/sync.mjs
