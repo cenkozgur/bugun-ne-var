@@ -155,10 +155,53 @@ async function main() {
     throw new Error('Hiçbir kaynaktan veri çekilemedi.');
   }
 
-  log('→ Eski / üzerine yazılacak / ghost Event temizleniyor…');
+  // Drop events from `collected` whose kickoff is already >3h in the
+  // past at sync time. Without this, reconcile would delete the stale
+  // row and the create-pass would immediately re-insert it from the
+  // same lagging upstream feed (e.g. Jolpica still listing the
+  // original Miami GP start time hours after the rescheduled race
+  // has finished). The threshold matches FINISHED_AFTER_HOURS used
+  // below for the delete pass — same rationale, both ends of the
+  // pipeline.
+  const writeCutoff = Date.now() - 3 * 60 * 60 * 1000;
+  const beforeFilter = collected.length;
+  const filteredCollected = collected.filter((e) => {
+    const t = new Date(e.start_time).getTime();
+    return Number.isFinite(t) && t >= writeCutoff;
+  });
+  const droppedCount = beforeFilter - filteredCollected.length;
+  if (droppedCount > 0) {
+    log(`  ⏱ ${droppedCount} bitmiş/geçmiş event yazma listesinden çıkarıldı`);
+  }
+  collected.length = 0;
+  collected.push(...filteredCollected);
+
+  log('→ Eski / üzerine yazılacak / ghost / bitmiş Event temizleniyor…');
   const all = await withRetry(() => list('Event'));
   const cutoff = Date.now() - 2 * 24 * 60 * 60 * 1000;
   const upcomingWindow = Date.now() + 7 * 24 * 60 * 60 * 1000;
+  // An event whose scheduled kickoff was more than this many hours in the
+  // past is treated as finished/cancelled and removed, regardless of what
+  // any upstream feed still says about it. This protects users from feeds
+  // that lag (e.g. Jolpica didn't update for the 2026 Miami GP after F1
+  // moved the start time forward 3h to dodge weather — race ran and
+  // ended while our app still counted down to the original time). Three
+  // hours covers virtually every event we ingest:
+  //   - football match: ~2.5h with stoppage + half-time
+  //   - F1 race / qualifying: ~2.5h with podium / cooldown
+  //   - F1 free practice: ~1.5h
+  //   - NBA game: ~3h with overtime risk
+  //   - MotoGP race: ~2h
+  //   - Tennis match: variable (5-set Slams can run long), but Grand Slam
+  //     events are seeded as multi-day tournament rows, not per-match,
+  //     so the 3h cap doesn't bite there.
+  // TV events that legitimately run >3h (Survivor finale, Eurovision)
+  // are rare enough that we'd rather show "geçti" than mis-count down
+  // to a finished event. If this becomes a real annoyance later, the
+  // hours-after-start cap can be lifted to 6h for the 'tv:' prefix
+  // specifically.
+  const FINISHED_AFTER_HOURS = 3;
+  const finishedCutoff = Date.now() - FINISHED_AFTER_HOURS * 60 * 60 * 1000;
   const incomingRefs = new Set(collected.map((e) => e._source_id));
 
   // Prefixes for external_refs we know how to manage from this script.
@@ -208,6 +251,11 @@ async function main() {
     const isStale = t < cutoff;
     const isOverwriting = e.external_ref && incomingRefs.has(e.external_ref);
     const isLegacyDemo = !e.external_ref && t >= cutoff && t <= upcomingWindow;
+    // Auto-finish: kickoff was >3h ago, treat as finished/cancelled and
+    // drop. Independent of upstream — covers feed-lag bugs where the
+    // upstream still calls the event "scheduled" hours after it actually
+    // ran. See FINISHED_AFTER_HOURS comment for sport-by-sport rationale.
+    const isFinishedByElapsed = t < finishedCutoff;
     // Ghost reconcile: row was written by one of our feeds (matches a
     // known prefix), is in our upcoming window, and didn't show up in
     // this run's incoming refs — upstream dropped it.
@@ -218,7 +266,7 @@ async function main() {
       !incomingRefs.has(e.external_ref) &&
       t >= cutoff &&
       t <= upcomingWindow;
-    return isStale || isOverwriting || isLegacyDemo || isGhost;
+    return isStale || isOverwriting || isLegacyDemo || isGhost || isFinishedByElapsed;
   });
   let delIdx = 0;
   for (const ev of toDelete) {
