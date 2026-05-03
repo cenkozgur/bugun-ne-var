@@ -155,18 +155,70 @@ async function main() {
     throw new Error('Hiçbir kaynaktan veri çekilemedi.');
   }
 
-  log('→ Eski / üzerine yazılacak Event temizleniyor…');
+  log('→ Eski / üzerine yazılacak / ghost Event temizleniyor…');
   const all = await withRetry(() => list('Event'));
   const cutoff = Date.now() - 2 * 24 * 60 * 60 * 1000;
   const upcomingWindow = Date.now() + 7 * 24 * 60 * 60 * 1000;
   const incomingRefs = new Set(collected.map((e) => e._source_id));
+
+  // Prefixes for external_refs we know how to manage from this script.
+  // If a row has an ext_ref with one of these prefixes, the relevant
+  // upstream feed *should* have re-emitted it this run. If we don't see
+  // it in incomingRefs, the upstream dropped that event (cancelled
+  // playoff slot, postponed match, retired race) — it's a ghost.
+  //
+  // Why prefix-scoped? So a row written by the user manually from the
+  // Base44 UI (no ext_ref, or ext_ref starting with something else like
+  // 'manual:') is never deleted. Reconcile only owns the rows our feeds
+  // wrote.
+  const FEED_PREFIXES = [
+    'espn:',      // basketball (NBA via football-predictor, sourced from ESPN)
+    'football:',  // football-data.org + api-football fixtures
+    'f1:',        // Jolpica F1 sessions
+    'tennis:',    // static tennis tournaments
+    'motogp:',    // static MotoGP rounds
+    'moto2:',
+    'moto3:',
+    'wsbk:',      // static WorldSBK rounds
+    'tv:',        // hand-curated TV events
+  ];
+  const isFeedRow = (ref) =>
+    typeof ref === 'string' &&
+    FEED_PREFIXES.some((p) => ref.startsWith(p));
+
+  // Reconcile guard: if every feed errored out, incomingRefs would be
+  // tiny or empty and we'd nuke half the table on a transient outage.
+  // Require at least one fixture per major feed before we trust the
+  // "missing means ghost" inference. The threshold (1) is intentionally
+  // low — if a feed has zero events in a 7-day window we already log
+  // it above as "! futbol kaynağı".
+  const sawFootball   = collected.some((e) => isFeedRow(e._source_id) && e._source_id.startsWith('football:'));
+  const sawBasketball = collected.some((e) => e._source_id?.startsWith('espn:'));
+  // For non-football sports we don't gate as strictly because their
+  // catalogs are static and short — a single F1/WSBK round being
+  // present is enough proof the feed worked.
+  const reconcileEnabled = sawFootball && sawBasketball;
+  if (!reconcileEnabled) {
+    log('  ⚠ reconcile devre dışı (futbol veya basketbol feed boş geldi)');
+  }
+
   const toDelete = all.filter((e) => {
     const t = new Date(e.start_time).getTime();
     if (!Number.isFinite(t)) return false;
     const isStale = t < cutoff;
     const isOverwriting = e.external_ref && incomingRefs.has(e.external_ref);
     const isLegacyDemo = !e.external_ref && t >= cutoff && t <= upcomingWindow;
-    return isStale || isOverwriting || isLegacyDemo;
+    // Ghost reconcile: row was written by one of our feeds (matches a
+    // known prefix), is in our upcoming window, and didn't show up in
+    // this run's incoming refs — upstream dropped it.
+    const isGhost =
+      reconcileEnabled &&
+      e.external_ref &&
+      isFeedRow(e.external_ref) &&
+      !incomingRefs.has(e.external_ref) &&
+      t >= cutoff &&
+      t <= upcomingWindow;
+    return isStale || isOverwriting || isLegacyDemo || isGhost;
   });
   let delIdx = 0;
   for (const ev of toDelete) {
