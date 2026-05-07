@@ -11,6 +11,7 @@ import EventDetail from '@/pages/EventDetail';
 import Settings from '@/pages/Settings';
 import Yakinda from '@/pages/Yakinda';
 import Seed from '@/pages/Seed';
+import LoginWelcome from '@/pages/LoginWelcome';
 import { useTheme } from '@/lib/useTheme';
 
 const AuthenticatedApp = () => {
@@ -31,9 +32,10 @@ const AuthenticatedApp = () => {
     if (authError.type === 'user_not_registered') {
       return <UserNotRegisteredError />;
     } else if (authError.type === 'auth_required') {
-      // Redirect to login automatically
-      navigateToLogin();
-      return null;
+      // Show our brand welcome screen first; the user taps "giriş yap"
+      // which triggers the Base44 redirect. Avoids dropping a fresh
+      // visitor straight onto Base44's generic hosted login page.
+      return <LoginWelcome onContinue={navigateToLogin} />;
     }
   }
 
