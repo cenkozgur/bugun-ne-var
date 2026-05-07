@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { Loader2, SlidersHorizontal } from 'lucide-react';
-import { parseISO, isAfter, format } from 'date-fns';
+import { parseISO, isAfter, format, startOfTomorrow } from 'date-fns';
 import { tr } from 'date-fns/locale';
 import EventCard from '@/components/home/EventCard';
 import CategoryChips from '@/components/home/CategoryChips';
@@ -124,10 +124,15 @@ export default function Yakinda() {
 
   const filteredAll = useMemo(() => applyFilter(categoryNarrowed, filter), [categoryNarrowed, filter]);
 
+  // "Yakında" = tomorrow onwards. Today's events live on the Bugün
+  // tab — duplicating them here would clutter the list and conflict
+  // with the screen title ("yakında"/upcoming, not "bugün dahil").
+  // Past events get filtered out as a side-effect of startOfTomorrow.
+  // Live events are excluded too because they belong on Bugün.
   const upcoming = useMemo(() => {
-    const now = new Date();
+    const tomorrowStart = startOfTomorrow();
     return filteredAll
-      .filter((e) => isAfter(parseISO(e.start_time), now) && !e.is_live)
+      .filter((e) => isAfter(parseISO(e.start_time), tomorrowStart) && !e.is_live)
       .sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
   }, [filteredAll]);
 
