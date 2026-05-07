@@ -72,6 +72,25 @@ const SERIES_BROADCASTERS = {
   tennis:   'S Sport',
 };
 
+// Basketball broadcaster fallback by league code. Used only when the
+// upstream feed (football-predictor → ESPN) returns null/empty for
+// broadcaster, which is the common case since ESPN's public scoreboard
+// doesn't expose Türkiye TV rights at all.
+//
+// Sources (verified 2026-05-07):
+//   - NBA: Saran Media's S Sport / S Sport 2 carries the regular season
+//     and playoffs in TR. Late-night tipoffs typically air on S Sport 2.
+//   - EuroLeague: S Sport 2 carries Anadolu Efes + Fenerbahçe Beko
+//     home + key matchups; S Sport rotation for the rest.
+//   - BSL (Basketbol Süper Ligi): TRT Spor holds the league rights.
+//
+// If a rights deal flips, fix here once and every event inherits it.
+const BASKETBALL_LEAGUE_BROADCASTERS = {
+  NBA:        'S Sport 2',
+  EUROLEAGUE: 'S Sport 2',
+  BSL:        'TRT Spor',
+};
+
 // Backend stores team names ASCII-normalized for slug stability
 // (Besiktas, Goztep, Kasimpasa). For UI we want the proper Turkish or
 // native spelling. This lookup converts upstream names → display names
@@ -233,11 +252,19 @@ export async function fetchUpcomingBasketball() {
     const compName = BASKETBALL_LEAGUE_DISPLAY[leagueCode] || leagueCode;
     const home = resolveBasketballTeamRef(g.home_team, leagueCode);
     const away = resolveBasketballTeamRef(g.away_team || '', leagueCode);
+    // Upstream feed exposes broadcaster as null (ESPN public scoreboard
+    // has no Türkiye TV rights data), so fall back to the league-level
+    // canonical channel. Single source of truth — see
+    // BASKETBALL_LEAGUE_BROADCASTERS comment for why each league maps
+    // where it does.
+    const broadcaster = g.broadcaster
+      || BASKETBALL_LEAGUE_BROADCASTERS[leagueCode]
+      || '';
     return {
       title: `${home.display} – ${away.display}`,
       competition_name: compName,
       start_time: new Date(g.kickoff).toISOString(),
-      broadcaster: g.broadcaster || '',
+      broadcaster,
       venue: g.venue || '',
       is_live: g.status === 'in_play',
       _category_slug: 'nba',

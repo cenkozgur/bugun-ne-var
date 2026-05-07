@@ -99,6 +99,92 @@ const update = (entity, id, patch)   => api('PUT',    `/entities/${entity}/${id}
 const remove = (entity, id)          => api('DELETE', `/entities/${entity}/${id}`);
 
 // ───────────────────────────────────────────────────────────────────
+// Bulk helpers
+//
+// Probed against Base44's REST API on 2026-05-07:
+//
+//   POST /entities/<Name>/bulk                  body: array of records
+//   DELETE /entities/<Name>                     body: {"id": {"$in": [...]}}
+//
+// The DELETE filter is Mongo-style; any field can be used, but `id $in`
+// is what we need for "delete this exact set of rows we just listed."
+//
+// Both halve into chunks because Base44 caps payload size and we want
+// each call to stay well under any per-request timeout. Chunk failures
+// fall back to one-by-one so a single bad row doesn't sink the run.
+// ───────────────────────────────────────────────────────────────────
+
+// 100 fits comfortably under Base44's payload limit and keeps each
+// bulk call ~1-2s on a warm connection. Tuned conservatively — going
+// higher gives diminishing returns once network round-trip dominates.
+const BULK_CHUNK_SIZE = 100;
+
+function chunked(arr, size = BULK_CHUNK_SIZE) {
+  const out = [];
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+  return out;
+}
+
+async function createMany(entity, records, { onProgress } = {}) {
+  if (records.length === 0) return { ok: 0, failed: 0 };
+  let ok = 0;
+  let failed = 0;
+  for (const chunk of chunked(records)) {
+    try {
+      await withRetry(() => api('POST', `/entities/${entity}/bulk`, chunk));
+      ok += chunk.length;
+      if (onProgress) onProgress(ok, failed);
+    } catch (err) {
+      // Bulk failed (single bad row taints the whole chunk in Base44's
+      // semantics). Drop back to one-by-one so we save the rest of the
+      // chunk. Logged at the call site.
+      for (const rec of chunk) {
+        try {
+          await withRetry(() => create(entity, rec));
+          ok += 1;
+        } catch (innerErr) {
+          failed += 1;
+          console.warn(`  ! ${entity} create: ${rec.title || rec.name || rec.external_ref || '?'} (${innerErr?.message || innerErr})`);
+        }
+      }
+    }
+    // Modest pause between chunks so we don't sustain peak QPS for too
+    // long. Empirically 200ms is enough to keep us out of rate-limit
+    // territory while still saving most of the gain over 60ms-per-row.
+    await sleep(200);
+  }
+  return { ok, failed };
+}
+
+async function removeMany(entity, ids) {
+  if (ids.length === 0) return { ok: 0, failed: 0 };
+  let ok = 0;
+  let failed = 0;
+  for (const chunk of chunked(ids)) {
+    try {
+      await withRetry(() =>
+        api('DELETE', `/entities/${entity}`, { id: { $in: chunk } })
+      );
+      ok += chunk.length;
+    } catch (err) {
+      // Same fallback: per-id deletes. Costs more wall time but
+      // guarantees forward progress.
+      for (const id of chunk) {
+        try {
+          await withRetry(() => remove(entity, id));
+          ok += 1;
+        } catch (innerErr) {
+          failed += 1;
+          console.warn(`  ! ${entity} delete ${id}: ${innerErr?.message || innerErr}`);
+        }
+      }
+    }
+    await sleep(200);
+  }
+  return { ok, failed };
+}
+
+// ───────────────────────────────────────────────────────────────────
 // Sync logic — mirrors src/pages/Seed.jsx step for step. Comments
 // inside Seed.jsx explain why each filter / dedupe / cleanup runs.
 // ───────────────────────────────────────────────────────────────────
@@ -268,33 +354,23 @@ async function main() {
       t <= upcomingWindow;
     return isStale || isOverwriting || isLegacyDemo || isGhost || isFinishedByElapsed;
   });
-  let delIdx = 0;
-  for (const ev of toDelete) {
-    try {
-      await withRetry(() => remove('Event', ev.id));
-      delIdx += 1;
-      await sleep(60);
-      if (delIdx % 25 === 0) await sleep(800);
-    } catch (err) {
-      log(`  ! silinemedi: ${ev.title || ev.id} (${err?.message || err})`);
-    }
-  }
-  log(`  ${toDelete.length} kayıt silindi. ✓`);
+  // Bulk delete via DELETE /entities/Event with {"id":{"$in":[...]}}.
+  // Falls back to per-row deletes if bulk fails for any chunk. See
+  // removeMany() helper.
+  const evDelRes = await removeMany('Event', toDelete.map((e) => e.id));
+  log(`  ${evDelRes.ok}/${toDelete.length} kayıt silindi${evDelRes.failed ? ` (${evDelRes.failed} başarısız)` : ''}. ✓`);
 
   log('→ Lig ve takım kayıtları hazırlanıyor…');
   const allComps = await withRetry(() => list('Competition'));
   const allEnts  = await withRetry(() => list('TrackedEntity'));
 
-  // Cleanup orphan rows — same logic as Seed.jsx
+  // Cleanup orphan rows — bulk delete by id $in.
   const orphanComps = allComps.filter((c) => !c.external_ref);
   const orphanEnts  = allEnts.filter((e) => !e.external_ref);
-  let cleanedC = 0, cleanedE = 0;
-  for (const c of orphanComps) {
-    try { await withRetry(() => remove('Competition', c.id)); cleanedC += 1; await sleep(60); } catch { /* ignore */ }
-  }
-  for (const e of orphanEnts) {
-    try { await withRetry(() => remove('TrackedEntity', e.id)); cleanedE += 1; await sleep(60); } catch { /* ignore */ }
-  }
+  const cRes = await removeMany('Competition',   orphanComps.map((c) => c.id));
+  const eRes = await removeMany('TrackedEntity', orphanEnts.map((e) => e.id));
+  const cleanedC = cRes.ok;
+  const cleanedE = eRes.ok;
   if (cleanedC || cleanedE) log(`  eski kayıtlar temizlendi: ${cleanedC} lig, ${cleanedE} takım. ✓`);
 
   const compByRef = new Map();
@@ -405,7 +481,11 @@ async function main() {
   log(`  ${entCreated} yeni + ${entUpdated} güncellendi + ${entByRef.size - entCreated} mevcut takım. ✓`);
 
   log(`→ ${collected.length} Event yazılıyor…`);
-  let okCount = 0, evIdx = 0;
+  // Build all payloads up front, then ship them as bulk chunks. The
+  // helper falls back to one-by-one if a chunk fails so a single
+  // bad row doesn't abort the run.
+  const eventPayloads = [];
+  let skippedNoCategory = 0;
   for (const seed of collected) {
     const {
       _category_slug, _source_id,
@@ -417,6 +497,7 @@ async function main() {
     const cat = bySlug[_category_slug];
     if (!cat) {
       log(`  ! kategori yok (${_category_slug}): ${seed.title}`);
+      skippedNoCategory += 1;
       continue;
     }
     const payload = {
@@ -431,18 +512,16 @@ async function main() {
     }
     if (_home_entity_ref) payload.home_entity_ref = _home_entity_ref;
     if (_away_entity_ref) payload.away_entity_ref = _away_entity_ref;
-
-    try {
-      await withRetry(() => create('Event', payload));
-      okCount += 1;
-      evIdx += 1;
-      await sleep(80);
-      if (evIdx % 20 === 0) await sleep(800);
-    } catch (err) {
-      log(`  ! yazılamadı: ${seed.title} (${err?.message || err})`);
-    }
+    eventPayloads.push(payload);
   }
-  log(`  ${okCount}/${collected.length} Event yazıldı. ✓`);
+
+  const evCreateRes = await createMany('Event', eventPayloads);
+  log(
+    `  ${evCreateRes.ok}/${collected.length} Event yazıldı` +
+    (skippedNoCategory ? ` (${skippedNoCategory} kategori yok)` : '') +
+    (evCreateRes.failed ? ` (${evCreateRes.failed} başarısız)` : '') +
+    '. ✓'
+  );
   log('✓ Bitti.');
 }
 
