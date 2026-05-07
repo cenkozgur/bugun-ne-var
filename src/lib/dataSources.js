@@ -323,39 +323,108 @@ export async function fetchUpcomingFootballMatches() {
 }
 
 /**
- * Fetch F1 sessions for the next race weekend from Jolpica.
+ * Fetch F1 sessions for the next race weekend.
+ *
+ * Two-source strategy:
+ *   1. OpenF1 (api.openf1.org) — primary. Pulls from F1's live timing
+ *      feed and reflects last-minute schedule moves within hours.
+ *      The 2026 Miami GP that bit us was a perfect example: F1
+ *      shifted the race three hours earlier to dodge thunderstorms,
+ *      OpenF1 picked it up the same day, Jolpica didn't.
+ *   2. Jolpica/Ergast — fallback. Only consulted if OpenF1 fails or
+ *      returns nothing. Mirrors Ergast's classic schedule format
+ *      and is generally reliable for the published calendar but slow
+ *      to reflect intra-event changes.
+ *
  * Returns 1-5 events (FP1, FP2/Sprint Quali, Sprint, Quali, Race)
  * depending on whether this is a sprint weekend.
  *
  * No date cutoff — the next race is always relevant to display, even if
  * it's 10 days out. The Home page's time-scope chips ("bu hafta", "tümü")
- * decide visibility downstream.
+ * decide visibility downstream. The sync.mjs auto-finish guard handles
+ * the bottom side: any session whose start time is >3h in the past gets
+ * dropped, so a lagging upstream can't keep a phantom counter ticking.
  */
-export async function fetchUpcomingF1Sessions() {
+const F1_COMP_REF = 'series:f1:2026';
+const F1_COMP_NAME = '🏎 Formula 1 2026';
+
+// Map OpenF1's session_name strings to our (key, Turkish label) pairs.
+// Probed against api.openf1.org/v1/sessions on 2026-05-07.
+const OPENF1_SESSION_LABELS = {
+  'Practice 1':         ['FP1',         'Antrenman 1'],
+  'Practice 2':         ['FP2',         'Antrenman 2'],
+  'Practice 3':         ['FP3',         'Antrenman 3'],
+  'Sprint Qualifying':  ['SprintQuali', 'Sprint Sıralama'],
+  'Sprint':             ['Sprint',      'Sprint'],
+  'Qualifying':         ['Quali',       'Sıralama'],
+  'Race':               ['Race',        'Yarış'],
+};
+
+async function fetchF1FromOpenF1() {
+  const res = await fetch('https://api.openf1.org/v1/sessions?year=2026&meeting_key=latest');
+  if (!res.ok) throw new Error(`OpenF1 ${res.status}`);
+  const sessions = await res.json();
+  if (!Array.isArray(sessions) || sessions.length === 0) return [];
+
+  // Drop the meeting if every session is already finished — we want the
+  // *upcoming* weekend. OpenF1's meeting_key=latest stays pinned to the
+  // most recent meeting until the next one opens, so during the
+  // post-race lull this can return only completed sessions.
+  const nowMs = Date.now();
+  const anyUpcoming = sessions.some((s) => {
+    const t = new Date(s.date_start).getTime();
+    return Number.isFinite(t) && t > nowMs - 3 * 60 * 60 * 1000;
+  });
+  if (!anyUpcoming) return [];
+
+  // All sessions in a meeting share the same circuit / GP name — pull
+  // them from any session row.
+  const meta = sessions[0];
+  const grandPrix = meta.meeting_name || meta.meeting_official_name || 'Grand Prix';
+  const venue = meta.circuit_short_name || '';
+  // Round number is needed for our stable _source_id. OpenF1 doesn't
+  // expose a `round` field directly, but `meeting_key` is monotonically
+  // increasing within a season and uniquely identifies a meeting, so
+  // it's a fine substitute. Prefer meeting_key over date when shaping
+  // ext_refs because the date can shift (Miami!) while the key stays.
+  const roundLike = meta.meeting_key || meta.meeting_official_name || meta.date_start?.slice(0, 10) || 'unknown';
+
+  const out = [];
+  const broadcaster = SERIES_BROADCASTERS.formula1;
+  for (const s of sessions) {
+    const mapped = OPENF1_SESSION_LABELS[s.session_name];
+    if (!mapped) continue;
+    const [sessionKey, label] = mapped;
+    const t = new Date(s.date_start).getTime();
+    if (!Number.isFinite(t)) continue;
+    out.push({
+      title: `${grandPrix} — ${label}`,
+      competition_name: F1_COMP_NAME,
+      start_time: new Date(t).toISOString(),
+      broadcaster,
+      venue,
+      is_live: false,
+      _category_slug: 'f1',
+      _source_id: `f1:2026:${roundLike}:${sessionKey}`,
+      _competition_ref: F1_COMP_REF,
+      _competition_name: F1_COMP_NAME,
+    });
+  }
+  return out;
+}
+
+async function fetchF1FromJolpica() {
   const url = `${JOLPICA_BASE}/2026/next.json`;
   const res = await fetch(url);
-  if (!res.ok) {
-    throw new Error(`Jolpica F1 API ${res.status}`);
-  }
+  if (!res.ok) throw new Error(`Jolpica F1 ${res.status}`);
   const data = await res.json();
   const race = data?.MRData?.RaceTable?.Races?.[0];
   if (!race) return [];
 
   const venue = race.Circuit?.circuitName || '';
   const grandPrix = race.raceName || 'Grand Prix';
-  // Single season-level competition so onboarding step 2 reads as
-  // "🏎 Formula 1" and the user can subscribe to the championship as a
-  // whole (not race-by-race).
-  const F1_COMP_REF = 'series:f1:2026';
-  const F1_COMP_NAME = '🏎 Formula 1 2026';
-  // SERIES_BROADCASTERS holds the canonical channel — fix once there
-  // if rights change, every session inherits the new value.
   const broadcaster = SERIES_BROADCASTERS.formula1;
-
   const sessions = [];
-  // sessionKey is an ASCII identifier (FP1, SprintQuali, Race) used in
-  // _source_id so dedupe keys don't depend on Turkish chars. label is the
-  // human title in Turkish.
   const addSession = (sessionKey, label, dateStr, timeStr) => {
     if (!dateStr || !timeStr) return;
     const iso = `${dateStr}T${timeStr}`;
@@ -374,17 +443,27 @@ export async function fetchUpcomingF1Sessions() {
       _competition_name: F1_COMP_NAME,
     });
   };
-
-  if (race.FirstPractice) addSession('FP1', 'Antrenman 1', race.FirstPractice.date, race.FirstPractice.time);
-  // SecondPractice is replaced by SprintQualifying on sprint weekends.
-  if (race.SecondPractice) addSession('FP2', 'Antrenman 2', race.SecondPractice.date, race.SecondPractice.time);
+  if (race.FirstPractice)    addSession('FP1',         'Antrenman 1',     race.FirstPractice.date,    race.FirstPractice.time);
+  if (race.SecondPractice)   addSession('FP2',         'Antrenman 2',     race.SecondPractice.date,   race.SecondPractice.time);
   if (race.SprintQualifying) addSession('SprintQuali', 'Sprint Sıralama', race.SprintQualifying.date, race.SprintQualifying.time);
-  if (race.ThirdPractice) addSession('FP3', 'Antrenman 3', race.ThirdPractice.date, race.ThirdPractice.time);
-  if (race.Sprint) addSession('Sprint', 'Sprint', race.Sprint.date, race.Sprint.time);
-  if (race.Qualifying) addSession('Quali', 'Sıralama', race.Qualifying.date, race.Qualifying.time);
+  if (race.ThirdPractice)    addSession('FP3',         'Antrenman 3',     race.ThirdPractice.date,    race.ThirdPractice.time);
+  if (race.Sprint)           addSession('Sprint',      'Sprint',          race.Sprint.date,           race.Sprint.time);
+  if (race.Qualifying)       addSession('Quali',       'Sıralama',        race.Qualifying.date,       race.Qualifying.time);
   addSession('Race', 'Yarış', race.date, race.time);
-
   return sessions;
+}
+
+export async function fetchUpcomingF1Sessions() {
+  // Try OpenF1 first because it carries near-real-time schedule moves
+  // (the kind that bit us at Miami 2026). Fall back to Jolpica only if
+  // OpenF1 errors or returns nothing.
+  try {
+    const fromOpen = await fetchF1FromOpenF1();
+    if (fromOpen.length > 0) return fromOpen;
+  } catch (err) {
+    console.warn(`OpenF1 failed, falling back to Jolpica: ${err?.message || err}`);
+  }
+  return fetchF1FromJolpica();
 }
 
 // Static team rosters per league. /seed pulls fixture data from
