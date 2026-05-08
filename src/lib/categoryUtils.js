@@ -38,8 +38,12 @@ const SLUG_TO_HERO_IMAGE = {
   futbol:   `https://images.unsplash.com/photo-1522778119026-d647f0596c20?${UNSPLASH_PARAMS}`,
   // Red Bull F1 car on track (Unsplash MyxG49FpjIM, user-picked).
   f1:       `https://images.unsplash.com/photo-1673250667524-8566063b79e6?${UNSPLASH_PARAMS}`,
-  // Motorcycle close-up in the dark (Unsplash dkkDYdBwp40, user-picked).
-  motogp:   `https://images.unsplash.com/photo-1698170610436-2501ecffc203?${UNSPLASH_PARAMS}`,
+  // Stefan Bradl knee-down through a sharp curve in red leathers
+  // (Pexels 63249, CC0, Pixabay). Replaced the earlier static dark
+  // close-up because MotoGP's brand moment is the lean-angle action
+  // shot — at thumbnail size it instantly reads as "racing", not
+  // "parked motorcycle at night".
+  motogp:   `https://images.pexels.com/photos/63249/pexels-photo-63249.jpeg?${PEXELS_PARAMS}`,
   // Basketball going through the hoop (Unsplash YF9YeTmhy6o, user-picked).
   nba:      `https://images.unsplash.com/photo-1728637690621-ad046564a657?${UNSPLASH_PARAMS}`,
   // Man playing tennis (Pexels 10612276, user-picked).
