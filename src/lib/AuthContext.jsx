@@ -114,13 +114,28 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // Both logout-return and post-login-return URLs are pinned to the
+  // app root. Two reasons:
+  //   1. Google's OAuth dance from Base44 requires the redirect_uri to
+  //      match an entry in Base44's whitelisted callback list. Sub-
+  //      paths like /ayarlar or /event/<id> aren't in that list, so
+  //      passing window.location.href directly produces the Google
+  //      "403 — Maalesef bu sayfaya erişim izniniz yok" page after
+  //      a logout-then-login cycle from a deep link.
+  //   2. Conceptually, returning a freshly-signed-in user to a deep
+  //      link they were on five minutes ago is brittle (event might
+  //      be gone, settings page makes no sense post-login). Root is
+  //      the safe landing zone — Home will route them to Onboarding
+  //      if they're new or to today's events if they aren't.
+  const APP_ROOT = window.location.origin + '/';
+
   const logout = (shouldRedirect = true) => {
     setUser(null);
     setIsAuthenticated(false);
-    
+
     if (shouldRedirect) {
       // Use the SDK's logout method which handles token cleanup and redirect
-      base44.auth.logout(window.location.href);
+      base44.auth.logout(APP_ROOT);
     } else {
       // Just remove the token without redirect
       base44.auth.logout();
@@ -128,8 +143,8 @@ export const AuthProvider = ({ children }) => {
   };
 
   const navigateToLogin = () => {
-    // Use the SDK's redirectToLogin method
-    base44.auth.redirectToLogin(window.location.href);
+    // Use the SDK's redirectToLogin method, pinned to root (see APP_ROOT comment)
+    base44.auth.redirectToLogin(APP_ROOT);
   };
 
   return (
