@@ -46,7 +46,14 @@ const SLUG_TO_HERO_IMAGE = {
   // path. Bonus: Toprak is Turkish, fitting for our TR-first app.
   motogp:   `https://images.pexels.com/photos/12735081/pexels-photo-12735081.jpeg?${PEXELS_PARAMS}`,
   // Basketball going through the hoop (Unsplash YF9YeTmhy6o, user-picked).
-  nba:      `https://images.unsplash.com/photo-1728637690621-ad046564a657?${UNSPLASH_PARAMS}`,
+  // Original photo is shot at dusk and reads almost black once the
+  // card's dark gradient overlay lands on top. Unsplash's imgix layer
+  // lets us lift exposure server-side without bandwidth cost: bri=20
+  // raises midtones (overall brightness), exp=10 opens highlights
+  // (preserves contrast so it doesn't go flat). Tuned by eye against
+  // the other tile heroes so the basket card sits in the same
+  // luminance band as the rest of the grid.
+  nba:      `https://images.unsplash.com/photo-1728637690621-ad046564a657?${UNSPLASH_PARAMS}&bri=20&exp=10`,
   // Man playing tennis (Pexels 10612276, user-picked).
   tenis:    `https://images.pexels.com/photos/10612276/pexels-photo-10612276.jpeg?${PEXELS_PARAMS}`,
   // Women playing volleyball (Pexels 25824200, user-picked).
