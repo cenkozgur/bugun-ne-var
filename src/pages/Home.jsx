@@ -154,6 +154,36 @@ export default function Home() {
   const tomorrowEvents = useMemo(() => tomorrowPreview(filteredAll, 3), [filteredAll]);
   const todayCount = useMemo(() => countToday(filteredAll), [filteredAll]);
 
+  // TEMP DIAGNOSTIC — remove after the bugün/yarın overlap bug is closed.
+  // Dumps every event in the current filter scope so we can see if the
+  // app is feeding duplicate rows, what start_time strings look like,
+  // and which filter each event would land in.
+  if (typeof window !== 'undefined') {
+    window.__bnvDebug = () => {
+      const rows = filteredAll.map((e) => ({
+        id: e.id,
+        title: e.title,
+        start_time: e.start_time,
+        is_live: e.is_live,
+        cat: e.category_id,
+        ext: e.external_ref,
+        parsed_local: parseISO(e.start_time).toString(),
+        is_today: isToday(parseISO(e.start_time)),
+      }));
+      const dups = {};
+      for (const r of rows) {
+        const k = `${r.title}|${r.start_time}`;
+        dups[k] = (dups[k] || 0) + 1;
+      }
+      const duplicates = Object.entries(dups).filter(([, n]) => n > 1);
+      console.log('[bnv] timeFilter =', timeFilter, '| filteredAll.len =', filteredAll.length);
+      console.table(rows);
+      if (duplicates.length) console.warn('[bnv] DUPLICATE rows:', duplicates);
+      return { rows, duplicates };
+    };
+    window.__bnvDebug();
+  }
+
   if (eventsLoading || subsLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
