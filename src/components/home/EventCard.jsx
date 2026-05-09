@@ -77,6 +77,9 @@ export default function EventCard({ event, category }) {
   return (
     <Link
       to={`/event/${event.id}`}
+      data-event-card
+      data-event-id={event.id}
+      data-event-live={event.is_live ? 'true' : 'false'}
       className={`relative block bg-card rounded-[20px] pl-5 pr-4 pt-4 pb-4 overflow-hidden press-scale transition-transform card-elevated ${
         event.is_live ? 'live-glow' : ''
       }`}
@@ -101,7 +104,10 @@ export default function EventCard({ event, category }) {
       </div>
 
       {/* Row 2: Title */}
-      <h3 className="text-body font-semibold text-foreground mt-2 line-clamp-2 leading-snug">
+      <h3
+        data-event-title
+        className="text-body font-semibold text-foreground mt-2 line-clamp-2 leading-snug"
+      >
         {event.title}
       </h3>
 

@@ -29,3 +29,10 @@ dist-ssr
 
 .env
 .vite
+
+# Playwright
+/test-results/
+/tests/report/
+/tests/e2e/.auth/
+/playwright-report/
+/playwright/.cache/

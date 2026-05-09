@@ -3,7 +3,8 @@ import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { Settings, Loader2, Compass } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { isToday, isTomorrow, isAfter, parseISO } from 'date-fns';
+import { isToday, parseISO } from 'date-fns';
+import { applyTimeFilter, tomorrowPreview, todayCount as countToday } from '@/lib/filterEvents';
 import { getGreeting } from '@/lib/useTheme';
 import FilterChips from '@/components/home/FilterChips';
 import CategoryChips from '@/components/home/CategoryChips';
@@ -143,39 +144,15 @@ export default function Home() {
     return Array.from(seen).sort();
   }, [categoryNarrowed]);
 
-  const filtered = useMemo(() => {
-    return filteredAll
-      .filter((e) => {
-        const d = parseISO(e.start_time);
-        if (timeFilter === 'today') return isToday(d) || e.is_live;
-        if (timeFilter === 'tomorrow') return isTomorrow(d);
-        if (timeFilter === 'week') {
-          // "Bu hafta" = next 7 days from now, not Mon-Sun calendar week.
-          // Calendar weeks confused users on Saturday/Sunday: Beşiktaş'ın
-          // Pazartesi maçı "gelecek hafta" sayılıp gizleniyordu.
-          const weekEnd = Date.now() + 7 * 24 * 60 * 60 * 1000;
-          return isAfter(d, new Date()) && d.getTime() <= weekEnd;
-        }
-        if (timeFilter === 'all') return isAfter(d, new Date()) || e.is_live;
-        return true;
-      })
-      .sort((a, b) => {
-        if (a.is_live && !b.is_live) return -1;
-        if (!a.is_live && b.is_live) return 1;
-        return new Date(a.start_time) - new Date(b.start_time);
-      });
-  }, [filteredAll, timeFilter]);
+  const filtered = useMemo(
+    () => applyTimeFilter(filteredAll, timeFilter),
+    [filteredAll, timeFilter]
+  );
 
   const liveEvents = filtered.filter((e) => e.is_live);
   const upcomingToday = filtered.filter((e) => !e.is_live && isToday(parseISO(e.start_time)));
-  const tomorrowEvents = filteredAll
-    .filter((e) => isTomorrow(parseISO(e.start_time)))
-    .sort((a, b) => new Date(a.start_time) - new Date(b.start_time))
-    .slice(0, 3);
-
-  const todayCount = filteredAll.filter(
-    (e) => isToday(parseISO(e.start_time)) || e.is_live
-  ).length;
+  const tomorrowEvents = useMemo(() => tomorrowPreview(filteredAll, 3), [filteredAll]);
+  const todayCount = useMemo(() => countToday(filteredAll), [filteredAll]);
 
   if (eventsLoading || subsLoading) {
     return (
