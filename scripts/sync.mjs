@@ -265,15 +265,52 @@ async function main() {
   // pipeline.
   const writeCutoff = Date.now() - 3 * 60 * 60 * 1000;
   const beforeFilter = collected.length;
+
+  // Same-hour cluster guard. When the user denylists one match from an
+  // api-football placeholder set ("all matches at the same hour, wrong
+  // day" pattern), the siblings sharing the same league + kickoff are
+  // statistically also wrong. Auto-drop them so the user only has to
+  // report ONE phantom — not all 8 — to clean a cluster.
+  //
+  // False-positive risk: legitimate TFF "final week same hour" rounds
+  // would also get dropped if a single match got denylisted by mistake.
+  // Mitigation: revert by removing the offending ext_ref from the list.
+  const placeholderClusters = new Set();
+  for (const e of collected) {
+    if (EXT_REF_DENYLIST.has(e._source_id)) {
+      placeholderClusters.add(`${e._competition_ref}|${e.start_time}`);
+    }
+  }
+
   const filteredCollected = collected.filter((e) => {
     if (EXT_REF_DENYLIST.has(e._source_id)) return false;
+    if (placeholderClusters.has(`${e._competition_ref}|${e.start_time}`)) return false;
     const t = new Date(e.start_time).getTime();
     return Number.isFinite(t) && t >= writeCutoff;
   });
   const droppedCount = beforeFilter - filteredCollected.length;
   if (droppedCount > 0) {
-    log(`  ⏱ ${droppedCount} bitmiş/geçmiş event yazma listesinden çıkarıldı`);
+    log(`  ⏱ ${droppedCount} event yazma listesinden çıkarıldı (denylist + cluster siblings + bitmiş)`);
   }
+  if (placeholderClusters.size > 0) {
+    log(`  🔒 ${placeholderClusters.size} placeholder cluster karantinada — sibling'leri de düştü`);
+  }
+
+  // Heuristic warning (no auto-drop): same-hour cluster of 6+ matches in
+  // the same league + same exact timestamp is suspicious. Legitimate
+  // final-week TFF rounds match this, but so do api-football placeholder
+  // schedules. WARN to ci log so a human can spot the next bad batch.
+  const clusterCounts = {};
+  for (const e of filteredCollected) {
+    if (!e._source_id?.startsWith('football:')) continue;
+    const key = `${e._competition_ref}|${e.start_time}`;
+    clusterCounts[key] = (clusterCounts[key] || 0) + 1;
+  }
+  const suspicious = Object.entries(clusterCounts).filter(([, n]) => n >= 6);
+  for (const [key, n] of suspicious) {
+    log(`  ⚠ same-hour cluster: ${n} maç @ ${key} — placeholder mu, gerçek final week mi?`);
+  }
+
   collected.length = 0;
   collected.push(...filteredCollected);
 
