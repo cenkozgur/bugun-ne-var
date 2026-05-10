@@ -44,6 +44,6 @@ export function useTheme() {
 export function getGreeting() {
   const hour = new Date().getHours();
   if (hour >= 6 && hour < 11) return { text: 'günaydın', emoji: '☀️' };
-  if (hour >= 11 && hour < 18) return { text: 'tünaydın', emoji: '👋' };
+  if (hour >= 11 && hour < 18) return { text: 'DEPLOY-OK-1442', emoji: '👋' };
   return { text: 'iyi akşamlar', emoji: '🌙' };
 }
