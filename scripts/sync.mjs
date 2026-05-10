@@ -241,6 +241,20 @@ async function main() {
     throw new Error('Hiçbir kaynaktan veri çekilemedi.');
   }
 
+  // Manual quarantine list. Events whose external_ref is in here are
+  // never written and always purged at delete time, regardless of what
+  // upstream says. Used when api-football publishes placeholder
+  // kickoffs (e.g. T1 final-week "all matches at the same hour" rule
+  // gets mass-stamped on the wrong day) and the user has confirmed the
+  // match was actually played earlier. Predictor ingest will keep
+  // returning the wrong row until the upstream API catches up; this
+  // bypasses that loop.
+  const EXT_REF_DENYLIST = new Set([
+    'football:21817', // Beşiktaş – Trabzonspor (oynandı 2026-05-09)
+    'football:21818', // Konyaspor – Fenerbahçe (oynandı 2026-05-09)
+    'football:21819', // Galatasaray – Antalyaspor 4-2 (oynandı 2026-05-09)
+  ]);
+
   // Drop events from `collected` whose kickoff is already >3h in the
   // past at sync time. Without this, reconcile would delete the stale
   // row and the create-pass would immediately re-insert it from the
@@ -252,6 +266,7 @@ async function main() {
   const writeCutoff = Date.now() - 3 * 60 * 60 * 1000;
   const beforeFilter = collected.length;
   const filteredCollected = collected.filter((e) => {
+    if (EXT_REF_DENYLIST.has(e._source_id)) return false;
     const t = new Date(e.start_time).getTime();
     return Number.isFinite(t) && t >= writeCutoff;
   });
@@ -332,6 +347,9 @@ async function main() {
   }
 
   const toDelete = all.filter((e) => {
+    // Manual quarantine wins over every other rule — including a row
+    // whose kickoff is in the future. See EXT_REF_DENYLIST comment.
+    if (e.external_ref && EXT_REF_DENYLIST.has(e.external_ref)) return true;
     const t = new Date(e.start_time).getTime();
     if (!Number.isFinite(t)) return false;
     const isStale = t < cutoff;
