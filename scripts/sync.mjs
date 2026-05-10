@@ -296,23 +296,47 @@ async function main() {
     log(`  🔒 ${placeholderClusters.size} placeholder cluster karantinada — sibling'leri de düştü`);
   }
 
-  // Heuristic warning (no auto-drop): same-hour cluster of 6+ matches in
-  // the same league + same exact timestamp is suspicious. Legitimate
-  // final-week TFF rounds match this, but so do api-football placeholder
-  // schedules. WARN to ci log so a human can spot the next bad batch.
+  // Cluster scan. Two layers:
+  //   1. WARN on any same-hour cluster of 6+ matches in the same league.
+  //      Legitimate TFF/Bundesliga "final week tüm maçlar aynı saat"
+  //      rounds match this — log only, no auto-drop.
+  //   2. AUTO-DROP cluster if the kickoff is exactly midnight UTC
+  //      (00:00 / 00:30 / 01:00 UTC). No European league plays at
+  //      02:00–03:00 Istanbul; these are unambiguously api-football
+  //      placeholder defaults. Catches Serie A / La Liga / Primeira
+  //      Liga's "T17:00:00" + 7h offset placeholder pattern.
   const clusterCounts = {};
   for (const e of filteredCollected) {
     if (!e._source_id?.startsWith('football:')) continue;
     const key = `${e._competition_ref}|${e.start_time}`;
     clusterCounts[key] = (clusterCounts[key] || 0) + 1;
   }
-  const suspicious = Object.entries(clusterCounts).filter(([, n]) => n >= 6);
-  for (const [key, n] of suspicious) {
+  const phantomMidnightClusters = new Set();
+  for (const [key, n] of Object.entries(clusterCounts)) {
+    if (n < 6) continue;
+    const [, ts] = key.split('|');
     log(`  ⚠ same-hour cluster: ${n} maç @ ${key} — placeholder mu, gerçek final week mi?`);
+    // 00:00–01:30 UTC kickoff = no real European league. Drop the cluster.
+    const utcHour = new Date(ts).getUTCHours();
+    if (utcHour <= 1) {
+      phantomMidnightClusters.add(key);
+      log(`     → otomatik dropping (gece yarısı UTC = placeholder kesin)`);
+    }
+  }
+
+  let finalCollected = filteredCollected;
+  if (phantomMidnightClusters.size > 0) {
+    finalCollected = filteredCollected.filter((e) => {
+      if (!e._source_id?.startsWith('football:')) return true;
+      const key = `${e._competition_ref}|${e.start_time}`;
+      return !phantomMidnightClusters.has(key);
+    });
+    const dropped = filteredCollected.length - finalCollected.length;
+    log(`  🚮 ${dropped} phantom midnight cluster eventi yazma listesinden çıkarıldı`);
   }
 
   collected.length = 0;
-  collected.push(...filteredCollected);
+  collected.push(...finalCollected);
 
   log('→ Eski / üzerine yazılacak / ghost / bitmiş Event temizleniyor…');
   const all = await withRetry(() => list('Event'));
