@@ -46,7 +46,7 @@ export default function CountdownTimer({ targetTime, variant = 'inline' }) {
     // looks like 3 hours total).
     const showDayCell = remaining.days >= 1;
     return (
-      <div className="flex items-center justify-center gap-3">
+      <div className="flex items-center justify-center gap-1.5 sm:gap-3 max-w-full">
         {showDayCell && (
           <>
             <Cell label="gün" value={pad(remaining.days)} />
@@ -83,13 +83,13 @@ export default function CountdownTimer({ targetTime, variant = 'inline' }) {
 
 function Cell({ label, value }) {
   return (
-    <div className="text-center">
-      <div className="text-display-xl tabular-nums font-bold text-foreground">{value}</div>
+    <div className="text-center min-w-0 shrink">
+      <div className="text-[clamp(2.25rem,9vw,3.5rem)] leading-none tabular-nums font-bold text-foreground">{value}</div>
       <div className="text-micro text-muted-foreground uppercase tracking-wider mt-1">{label}</div>
     </div>
   );
 }
 
 function Sep() {
-  return <div className="text-display-xl font-bold text-muted-foreground/40">:</div>;
+  return <div className="text-[clamp(2.25rem,9vw,3.5rem)] leading-none font-bold text-muted-foreground/40">:</div>;
 }
