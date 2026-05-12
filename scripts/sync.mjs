@@ -249,11 +249,32 @@ async function main() {
   // match was actually played earlier. Predictor ingest will keep
   // returning the wrong row until the upstream API catches up; this
   // bypasses that loop.
+  //
+  // Two sources:
+  //   1. Hardcoded seed below — bootstrap entries from the first incident.
+  //   2. Base44 Quarantine entity — user long-presses an event card and
+  //      the row is added live, no code commit needed.
   const EXT_REF_DENYLIST = new Set([
     'football:21817', // Beşiktaş – Trabzonspor (oynandı 2026-05-09)
     'football:21818', // Konyaspor – Fenerbahçe (oynandı 2026-05-09)
     'football:21819', // Galatasaray – Antalyaspor 4-2 (oynandı 2026-05-09)
   ]);
+  try {
+    const userQuarantine = await withRetry(() => list('Quarantine'));
+    let added = 0;
+    for (const q of userQuarantine) {
+      if (q.external_ref && !EXT_REF_DENYLIST.has(q.external_ref)) {
+        EXT_REF_DENYLIST.add(q.external_ref);
+        added++;
+      }
+    }
+    if (added > 0) {
+      log(`  🔐 ${added} user quarantine kaydı denylist'e eklendi (toplam ${EXT_REF_DENYLIST.size})`);
+    }
+  } catch (err) {
+    // Quarantine entity yoksa veya geçici hata: seed-only mode'a düş.
+    log(`  ⚠ Quarantine entity okunamadı (${err?.message || err}), sadece hardcoded seed kullanılıyor`);
+  }
 
   // Drop events from `collected` whose kickoff is already >3h in the
   // past at sync time. Without this, reconcile would delete the stale

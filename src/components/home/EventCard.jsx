@@ -1,18 +1,26 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { MoreHorizontal, Bell, BellOff, CalendarPlus, Tv } from 'lucide-react';
-import CategoryBadge from '@/components/common/CategoryBadge';
+import { useQueryClient } from '@tanstack/react-query';
+import { Bell, BellOff, CalendarPlus, Tv } from 'lucide-react';
 import CountdownTimer from '@/components/common/CountdownTimer';
 import { format, isToday, isTomorrow } from 'date-fns';
 import { tr } from 'date-fns/locale';
 import { useToast } from '@/components/ui/use-toast';
 import { downloadIcsForEvent } from '@/lib/ics';
 import { createReminder, removeReminder, isEventReminded } from '@/lib/reminders';
+import { base44 } from '@/api/base44Client';
+
+// Long-press threshold. iOS Safari's native context menu kicks in around
+// 600ms; we fire before that to claim the gesture.
+const LONG_PRESS_MS = 450;
 
 export default function EventCard({ event, category }) {
   const [reminded, setReminded] = useState(false);
   const [busy, setBusy] = useState(false);
   const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const pressTimer = useRef(null);
+  const longPressed = useRef(false);
   const eventTime = new Date(event.start_time);
   // For today's events just the time. Tomorrow gets a soft prefix. Anything
   // further out shows the date so the user isn't squinting at "150 saat" trying
@@ -67,6 +75,61 @@ export default function EventCard({ event, category }) {
     }
   };
 
+  // Long-press → quarantine. Removes the row from BNV's DB AND adds a
+  // Quarantine row keyed by external_ref so sync.mjs won't re-write it
+  // on the next cron. The whole point: user reports a phantom match
+  // (api-football placeholder kickoff) without code commits.
+  const quarantineEvent = async () => {
+    if (busy) return;
+    const ok = window.confirm(
+      `"${event.title}" — bu maç çoktan oynandı mı?\n\nEvet dersen kart gizlenecek, gelecekte sync tarafından da yeniden yazılmayacak.`
+    );
+    if (!ok) return;
+    setBusy(true);
+    try {
+      if (event.external_ref) {
+        await base44.entities.Quarantine.create({
+          external_ref: event.external_ref,
+          reason: 'user-reported phantom',
+        });
+      }
+      await base44.entities.Event.delete(event.id);
+      toast({ title: 'karantinaya alındı', description: 'bu maç bir daha bugünde görünmeyecek.' });
+      queryClient.invalidateQueries({ queryKey: ['events'] });
+    } catch (err) {
+      toast({
+        title: 'karantina hatası',
+        description: String(err?.message || err),
+        variant: 'destructive',
+      });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handlePressStart = () => {
+    longPressed.current = false;
+    pressTimer.current = setTimeout(() => {
+      longPressed.current = true;
+      quarantineEvent();
+    }, LONG_PRESS_MS);
+  };
+  const handlePressEnd = () => {
+    if (pressTimer.current) {
+      clearTimeout(pressTimer.current);
+      pressTimer.current = null;
+    }
+  };
+  const handleClick = (e) => {
+    // Swallow the click that fires immediately after a long-press so the
+    // <Link> doesn't navigate to /event/<id> while the confirm dialog is
+    // open.
+    if (longPressed.current) {
+      e.preventDefault();
+      longPressed.current = false;
+    }
+  };
+
   // On live events we hide the standalone live pill (already shown as section header).
   const showCountdownRow = !event.is_live;
   // On live events we hide reminder button (makes no sense) and replace with a watch link if we have broadcaster.
@@ -80,6 +143,15 @@ export default function EventCard({ event, category }) {
       data-event-card
       data-event-id={event.id}
       data-event-live={event.is_live ? 'true' : 'false'}
+      onTouchStart={handlePressStart}
+      onTouchEnd={handlePressEnd}
+      onTouchMove={handlePressEnd}
+      onTouchCancel={handlePressEnd}
+      onMouseDown={handlePressStart}
+      onMouseUp={handlePressEnd}
+      onMouseLeave={handlePressEnd}
+      onContextMenu={(e) => { e.preventDefault(); quarantineEvent(); }}
+      onClick={handleClick}
       className={`relative block bg-card rounded-[20px] pl-5 pr-4 pt-4 pb-4 overflow-hidden press-scale transition-transform card-elevated ${
         event.is_live ? 'live-glow' : ''
       }`}
