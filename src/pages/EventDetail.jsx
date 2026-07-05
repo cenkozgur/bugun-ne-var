@@ -4,11 +4,11 @@ import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { X, Share2, Bell, BellOff, CalendarPlus, Tv, Loader2 } from 'lucide-react';
 import CountdownTimer from '@/components/common/CountdownTimer';
-import LiveBadge from '@/components/common/LiveBadge';
 import { getCategoryColorClass } from '@/lib/categoryUtils';
 import { useToast } from '@/components/ui/use-toast';
 import { downloadIcsForEvent } from '@/lib/ics';
 import { createReminder, removeReminder, isEventReminded } from '@/lib/reminders';
+import LiveScoreBoard from '@/components/event/LiveScoreBoard';
 
 export default function EventDetail() {
   const navigate = useNavigate();
@@ -174,12 +174,7 @@ export default function EventDetail() {
         {/* Countdown or Live */}
         <div className="my-4">
           {event.is_live ? (
-            <div className="flex flex-col items-center gap-3">
-              <LiveBadge />
-              {event.live_status && (
-                <p className="text-title text-foreground font-semibold">{event.live_status}</p>
-              )}
-            </div>
+            <LiveScoreBoard event={event} />
           ) : (
             <CountdownTimer targetTime={event.start_time} variant="hero" />
           )}

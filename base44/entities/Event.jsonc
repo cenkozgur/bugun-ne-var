@@ -36,6 +36,14 @@
       "type": "string",
       "description": "Current live status text"
     },
+    "home_score": {
+      "type": "number",
+      "description": "Live score of the home team (only meaningful while is_live or after the match)"
+    },
+    "away_score": {
+      "type": "number",
+      "description": "Live score of the away team"
+    },
     "competition_name": {
       "type": "string",
       "description": "Denormalized competition name for display"

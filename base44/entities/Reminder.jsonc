@@ -19,11 +19,5 @@
   },
   "required": [
     "event_id"
-  ],
-  "rls": {
-    "read":   { "created_by": "{{user.email}}" },
-    "create": { "created_by": "{{user.email}}" },
-    "update": { "created_by": "{{user.email}}" },
-    "delete": { "created_by": "{{user.email}}" }
-  }
+  ]
 }
